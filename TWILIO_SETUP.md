@@ -179,6 +179,61 @@ The system accepts multiple US phone number formats:
 4. **Role Check**: `GET /auth/me` verifies `role === "admin"`
 5. **Admin Access**: JWT token grants admin privileges
 
+## 🏆 Winner Notifications
+
+### Winner SMS System
+The application includes a complete winner notification system:
+
+#### **Winner Selection**
+```http
+POST /admin/contests/{contest_id}/select-winner
+Authorization: Bearer {admin_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Winner selected successfully",
+  "winner_entry_id": 12,
+  "winner_user_phone": "+1***8204", 
+  "total_entries": 45
+}
+```
+
+#### **SMS Notification**
+```http
+POST /admin/contests/{contest_id}/notify-winner
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+
+{
+  "entry_id": 12,
+  "message": "🎉 Congrats! You're the winner!"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Winner notification sent successfully",
+  "entry_id": 12,
+  "contest_id": 1,
+  "winner_phone": "+1***8204",
+  "sms_status": "SMS notification sent successfully - SID: SM...",
+  "notification_sent_at": "2025-08-20T04:20:45.480744"
+}
+```
+
+### Winner Management Features
+- **Random Selection**: Automatically selects winner from all contest entries
+- **Custom SMS**: Editable congratulatory message (160 char limit)
+- **Status Tracking**: Winners marked with purple "Winner" badges
+- **Phone Privacy**: Winner phone numbers masked for privacy
+- **Twilio Integration**: SMS sent via Twilio Verify API
+- **Admin Interface**: Professional winner management UI
+
 ### Admin Setup Steps
 ```bash
 # 1. Add admin phone to backend .env
