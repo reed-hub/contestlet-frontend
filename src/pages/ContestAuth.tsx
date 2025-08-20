@@ -140,6 +140,10 @@ const ContestAuth: React.FC = () => {
 
   const enterContest = async (token: string) => {
     try {
+      console.log('Entering contest:', contest_id);
+      console.log('API URL:', `${apiBaseUrl}/contests/${contest_id}/enter`);
+      console.log('Using token:', token.substring(0, 20) + '...');
+      
       const response = await fetch(`${apiBaseUrl}/contests/${contest_id}/enter`, {
         method: 'POST',
         headers: {
@@ -149,6 +153,7 @@ const ContestAuth: React.FC = () => {
       });
 
       const data = await response.json();
+      console.log('Contest entry response:', { status: response.status, data });
 
       if (response.ok) {
         setToast({
@@ -171,13 +176,13 @@ const ContestAuth: React.FC = () => {
         } else if (response.status === 400) {
           setToast({
             type: 'error',
-            message: 'This contest has expired or is not available.',
+            message: data.message || data.detail || 'This contest has expired or is not available.',
             isVisible: true,
           });
         } else {
           setToast({
             type: 'error',
-            message: data.message || 'Failed to enter contest',
+            message: data.message || data.detail || 'Failed to enter contest',
             isVisible: true,
           });
         }

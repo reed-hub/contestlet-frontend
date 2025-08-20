@@ -147,6 +147,23 @@ Content-Type: application/json
 }
 ```
 
+### View All Contests
+```bash
+GET /admin/contests
+Authorization: Bearer {admin_token}
+
+# Response includes status field
+{
+  "id": 11,
+  "name": "Contest Name",
+  "active": false,
+  "start_time": "2024-01-01T10:00:00",
+  "end_time": "2024-01-02T10:00:00",
+  "status": "ended",  # ended, active, upcoming, inactive
+  "entry_count": 5
+}
+```
+
 ### View Contest Entries
 ```bash
 GET /admin/contests/{contest_id}/entries
@@ -196,11 +213,171 @@ Content-Type: application/json
 }
 ```
 
+### View SMS Notification Logs
+```bash
+GET /admin/notifications?contest_id=1&notification_type=winner&limit=50
+Authorization: Bearer {admin_token}
+
+# Query Parameters (all optional)
+# - contest_id: Filter by specific contest
+# - notification_type: Filter by type (winner, reminder, general)
+# - limit: Number of records (default: 50, max: 50)
+
+# Response
+[
+  {
+    "id": 5,
+    "contest_id": 1,
+    "user_id": 2,
+    "entry_id": 12,
+    "message": "🎉 Congrats! You're the winner!",
+    "notification_type": "winner",
+    "status": "sent",          # sent, failed, pending
+    "twilio_sid": "SM1234567890abcdef...",
+    "error_message": null,
+    "test_mode": false,
+    "sent_at": "2025-08-20T04:20:45.480744",
+    "admin_user_id": "1",
+    "contest_name": "Summer Contest",
+    "user_phone": "+1***8204"  # Masked for privacy
+  }
+]
+```
+
+## 🌍 Timezone Management
+
+### Get Supported Timezones
+```bash
+GET /admin/profile/timezones
+
+# Response
+{
+  "timezones": [
+    {
+      "timezone": "America/New_York",
+      "display_name": "Eastern Time (ET)",
+      "current_time": "2024-01-15T14:30:00-05:00",
+      "utc_offset": "-05:00",
+      "is_dst": false
+    },
+    {
+      "timezone": "America/Los_Angeles", 
+      "display_name": "Pacific Time (PT)",
+      "current_time": "2024-01-15T11:30:00-08:00",
+      "utc_offset": "-08:00",
+      "is_dst": false
+    }
+  ],
+  "default_timezone": "UTC"
+}
+```
+
+### Set Admin Timezone Preferences
+```bash
+POST /admin/profile/timezone
+Authorization: Bearer {admin_jwt}
+Content-Type: application/json
+
+{
+  "timezone": "America/New_York",
+  "timezone_auto_detect": false
+}
+
+# Response
+{
+  "admin_user_id": "admin_123",
+  "timezone": "America/New_York",
+  "timezone_auto_detect": false,
+  "created_at": "2024-01-15T19:30:00Z",
+  "updated_at": "2024-01-15T19:30:00Z"
+}
+```
+
+### Get Admin Timezone Preferences  
+```bash
+GET /admin/profile/timezone
+Authorization: Bearer {admin_jwt}
+
+# Response: Same format as POST /admin/profile/timezone
+```
+
+### Update Admin Timezone Preferences
+```bash
+PUT /admin/profile/timezone
+Authorization: Bearer {admin_jwt}
+Content-Type: application/json
+
+{
+  "timezone": "America/Los_Angeles"  # Only update timezone, keep auto_detect
+}
+
+# Response: Updated admin profile
+```
+
+### Reset Timezone Preferences
+```bash
+DELETE /admin/profile/timezone
+Authorization: Bearer {admin_jwt}
+
+# Response
+{
+  "message": "Timezone preferences reset to defaults"
+}
+```
+
 ### 🛑 SMS Notification Security
 - **Rate Limited**: 5 SMS per 5 minutes per admin
 - **JWT Required**: Must use admin JWT from OTP auth (legacy tokens rejected)
 - **Entry Validation**: User must have actually entered the contest
 - **Audit Trail**: All SMS attempts logged to database
+
+### 📊 Contest Status Values
+- **"ended"**: Contest has finished (past end_time)
+- **"active"**: Contest is currently running
+- **"upcoming"**: Contest hasn't started yet (future start_time)  
+- **"inactive"**: Contest is manually disabled but hasn't ended
+
+### 🌍 How Timezone Handling Works
+
+#### **Core Principle: UTC Storage, Local Display**
+- **Database**: All times stored as UTC
+- **Admin Interface**: Times displayed in admin's preferred timezone
+- **API**: Always sends/receives UTC times with timezone metadata
+
+#### **Contest Creation Flow**
+```javascript
+// 1. Admin enters time in their timezone
+Admin input: "2024-01-15 14:30" (2:30 PM Eastern)
+
+// 2. Frontend converts to UTC for API
+API payload: {
+  "start_time": "2024-01-15T19:30:00Z"  // UTC
+}
+
+// 3. Backend adds timezone metadata
+Stored contest: {
+  "start_time": "2024-01-15T19:30:00Z",     // UTC for storage
+  "created_timezone": "America/New_York",    // Admin's timezone context
+  "admin_user_id": "admin_123"               // Who created it
+}
+```
+
+#### **Admin Timezone Workflow**
+1. **Set preferences**: Choose timezone in `/admin/profile`
+2. **Create contests**: Enter times in your timezone
+3. **View contests**: Times display in your timezone
+4. **System handles conversion**: UTC storage + timezone context
+
+#### **Supported Timezones**
+- **US**: Eastern, Central, Mountain, Pacific, Arizona, Alaska, Hawaii
+- **International**: UTC, GMT, CET, JST, CST, AEST
+- **Canada**: Eastern, Central, Mountain, Pacific
+
+#### **Important Notes**
+- ⚠️ **Frontend must convert to UTC** before sending to API
+- ⚠️ **Always include timezone metadata** in contest responses
+- ⚠️ **Handle daylight saving time** transitions properly
+- ⚠️ **Validate timezone identifiers** before API calls
 
 ## 📊 Response Codes
 

@@ -10,7 +10,8 @@ interface ContestEntry {
   phone_number: string;
   entry_time?: string;
   created_at?: string;
-  status?: string;
+  status?: string;  // "active", "winner", "disqualified"
+  selected?: boolean;
   contest_id?: number;
 }
 
@@ -23,13 +24,18 @@ interface Contest {
   end_time: string;
   prize_description: string;
   active: boolean;
+  status: string;
   created_at: string;
   entry_count: number;
+  winner_entry_id?: number | null;
+  winner_phone?: string | null;
+  winner_selected_at?: string | null;
 }
 
 interface WinnerResult {
   success: boolean;
   message: string;
+  detail?: string; // For error responses
   winner_entry_id?: number;
   winner_user_phone?: string;
   total_entries?: number;
@@ -45,6 +51,23 @@ interface NotificationResult {
   notification_sent_at?: string;
 }
 
+interface NotificationLog {
+  id: number;
+  contest_id: number;
+  contest_name: string;
+  user_id: number;
+  entry_id: number;
+  message: string;
+  notification_type: 'winner' | 'reminder' | 'general';
+  status: 'sent' | 'failed' | 'pending';
+  twilio_sid?: string;
+  error_message?: string;
+  test_mode: boolean;
+  sent_at: string;
+  admin_user_id: string;
+  user_phone: string;
+}
+
 const ContestEntries: React.FC = () => {
   const { contest_id } = useParams<{ contest_id: string }>();
   const [entries, setEntries] = useState<ContestEntry[]>([]);
@@ -56,6 +79,8 @@ const ContestEntries: React.FC = () => {
   const [smsMessage, setSmsMessage] = useState('🎉 Congratulations! You\'re the winner of our amazing contest! We\'ll contact you soon with details about claiming your prize.');
   const [isSelectingWinner, setIsSelectingWinner] = useState(false);
   const [isSendingSMS, setIsSendingSMS] = useState(false);
+  const [winnerNotificationLogs, setWinnerNotificationLogs] = useState<NotificationLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
@@ -69,6 +94,42 @@ const ContestEntries: React.FC = () => {
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
+  // Fetch notification logs for the winner
+  const fetchWinnerNotificationLogs = async (entryId: number) => {
+    try {
+      setLoadingLogs(true);
+      const adminToken = getAdminToken();
+      
+      if (!adminToken) {
+        console.error('No admin token available');
+        return;
+      }
+
+      // Fetch logs for this contest and filter by entry_id on the frontend
+      const response = await fetch(`${apiBaseUrl}/admin/notifications?contest_id=${contest_id}`, {
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch notification logs: ${response.status}`);
+      }
+
+      const allLogs = await response.json();
+      // Filter logs for the specific winner entry
+      const winnerLogs = Array.isArray(allLogs) ? allLogs.filter((log: NotificationLog) => log.entry_id === entryId) : [];
+      
+      console.log('Winner notification logs:', winnerLogs);
+      setWinnerNotificationLogs(winnerLogs);
+    } catch (err) {
+      console.error('Error fetching winner notification logs:', err);
+      // Don't show error toast for logs, it's supplementary info
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
   // Check authentication on mount
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -76,6 +137,16 @@ const ContestEntries: React.FC = () => {
       return;
     }
   }, [navigate]);
+
+  // Fetch notification logs when winner is available
+  useEffect(() => {
+    if (contest?.winner_entry_id) {
+      fetchWinnerNotificationLogs(contest.winner_entry_id);
+    } else {
+      // Clear logs if no winner
+      setWinnerNotificationLogs([]);
+    }
+  }, [contest?.winner_entry_id, contest_id]);
 
   // Fetch contest details and entries
   useEffect(() => {
@@ -111,6 +182,15 @@ const ContestEntries: React.FC = () => {
           throw new Error('Contest not found');
         }
         
+        console.log('Found contest details:', foundContest);
+        console.log('Contest winner info:', {
+          winner_entry_id: foundContest.winner_entry_id,
+          winner_phone: foundContest.winner_phone,
+          winner_selected_at: foundContest.winner_selected_at,
+          contest_status: foundContest.status,
+          contest_active: foundContest.active
+        });
+        
         setContest(foundContest);
         
         // Now fetch entries using the documented admin endpoint
@@ -131,6 +211,19 @@ const ContestEntries: React.FC = () => {
         } else {
           const entriesData: ContestEntry[] = await entriesResponse.json();
           console.log('Contest entries loaded:', entriesData);
+          console.log('Entry statuses:', entriesData.map(e => ({ id: e.id, status: e.status, phone: e.phone_number })));
+          
+          // Check for winner-like entries
+          const potentialWinners = entriesData.filter(e => 
+            e.status && (
+              e.status.toLowerCase().includes('winner') || 
+              e.status.toLowerCase().includes('selected') ||
+              e.status.toLowerCase() === 'win' ||
+              e.status.toLowerCase() === 'won'
+            )
+          );
+          console.log('Potential winners found:', potentialWinners);
+          
           setEntries(entriesData);
         }
       } catch (err) {
@@ -187,7 +280,23 @@ const ContestEntries: React.FC = () => {
 
   // Winner selection function
   const handleSelectWinner = async () => {
-    if (!contest_id) return;
+    if (!contest_id) {
+      setToast({
+        type: 'error',
+        message: 'No contest ID found',
+        isVisible: true,
+      });
+      return;
+    }
+
+    if (!entries || entries.length === 0) {
+      setToast({
+        type: 'error',
+        message: 'No entries found for this contest',
+        isVisible: true,
+      });
+      return;
+    }
 
     setIsSelectingWinner(true);
     setError(null);
@@ -197,6 +306,9 @@ const ContestEntries: React.FC = () => {
       if (!adminToken) {
         throw new Error('No admin token found');
       }
+
+      // Debug logging
+      console.log('Selecting winner for contest:', contest_id);
 
       const response = await fetch(`${apiBaseUrl}/admin/contests/${contest_id}/select-winner`, {
         method: 'POST',
@@ -223,16 +335,44 @@ const ContestEntries: React.FC = () => {
             // Update the entry status in the list
             setEntries(prev => prev.map(entry => 
               entry.id === result.winner_entry_id 
-                ? { ...entry, status: 'winner' }
+                ? { ...entry, status: 'winner', selected: true }
                 : entry
             ));
+            
+            // Update the contest state with winner information
+            setContest(prevContest => prevContest ? {
+              ...prevContest,
+              winner_entry_id: result.winner_entry_id,
+              winner_phone: result.winner_user_phone,
+              winner_selected_at: new Date().toISOString()
+            } : null);
           }
         }
       } else {
-        throw new Error(result.message || 'Failed to select winner');
+        const errorMsg = result.message || result.detail || `Failed to select winner (${response.status})`;
+        throw new Error(errorMsg);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to select winner';
+      console.error('Winner selection error:', err);
+      let errorMessage = err instanceof Error ? err.message : 'Failed to select winner';
+      
+      // Handle specific error cases
+      if (errorMessage.toLowerCase().includes('winner already selected')) {
+        // If backend says winner exists but we don't see it, refresh the data
+        console.log('Backend reports winner exists, refreshing entries data...');
+        // Trigger a data refresh
+        window.location.reload(); // Simple refresh for now
+        return;
+      } else if (errorMessage.includes('400')) {
+        errorMessage = 'Bad Request: Please check if the contest has entries and you have admin permissions';
+      } else if (errorMessage.includes('401')) {
+        errorMessage = 'Authentication failed. Please log in again as admin.';
+      } else if (errorMessage.includes('403')) {
+        errorMessage = 'Access denied. Admin privileges required.';
+      } else if (errorMessage.includes('404')) {
+        errorMessage = 'Contest not found or endpoint not available.';
+      }
+      
       setError(errorMessage);
       setToast({
         type: 'error',
@@ -279,6 +419,11 @@ const ContestEntries: React.FC = () => {
 
         setShowNotificationModal(false);
         setSmsMessage('🎉 Congratulations! You\'re the winner of our amazing contest! We\'ll contact you soon with details about claiming your prize.');
+        
+        // Refresh notification logs to show the newly sent SMS
+        if (contest?.winner_entry_id) {
+          fetchWinnerNotificationLogs(contest.winner_entry_id);
+        }
       } else {
         throw new Error(result.message || 'Failed to send SMS notification');
       }
@@ -294,9 +439,29 @@ const ContestEntries: React.FC = () => {
     }
   };
 
-  // Check if there's already a winner
-  const hasWinner = entries.some(e => e.status && ['winner', 'selected'].includes(e.status.toLowerCase()));
-  const currentWinner = entries.find(e => e.status && ['winner', 'selected'].includes(e.status.toLowerCase()));
+  // Check if there's already a winner (using contest winner info + entry status)
+  const hasWinner = !!(contest?.winner_entry_id);
+  const currentWinner = hasWinner 
+    ? entries.find(e => e.id === contest?.winner_entry_id)
+    : entries.find(e => e.status === 'winner' || e.selected === true);
+  
+  // Contest status logic
+  const contestActive = contest?.active === true;
+  const contestInactive = contest?.active === false;
+  const canSelectWinner = contestInactive && !hasWinner;
+  
+  // Sort entries to show winner first
+  const sortedEntries = [...entries].sort((a, b) => {
+    const aIsWinner = a.id === contest?.winner_entry_id || 
+                     a.status === 'winner' || 
+                     a.selected === true;
+    const bIsWinner = b.id === contest?.winner_entry_id || 
+                     b.status === 'winner' || 
+                     b.selected === true;
+    if (aIsWinner && !bIsWinner) return -1;
+    if (!aIsWinner && bIsWinner) return 1;
+    return 0;
+  });
 
   if (loading) {
     return (
@@ -387,11 +552,46 @@ const ContestEntries: React.FC = () => {
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="text-sm font-medium text-gray-900 mb-2">Select Random Winner</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Randomly select a winner from all contest entries
+                {contestActive 
+                  ? 'Contest must end before selecting winner' 
+                  : hasWinner 
+                    ? 'Winner has already been selected for this contest'
+                    : 'Randomly select a winner from all contest entries'
+                }
               </p>
+              
+              {/* Contest Status Indicators */}
+              {contestActive && (
+                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                  ⏰ Contest Status: <strong>Active</strong> - Winner selection available after contest ends
+                </div>
+              )}
+              
+              {contestInactive && !hasWinner && (
+                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                  ✅ Contest Status: <strong>Inactive</strong> - Ready for winner selection
+                </div>
+              )}
+              
+              {hasWinner && (
+                <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded text-xs text-purple-800">
+                  🏆 Winner Status: <strong>Already Selected</strong> - Entry #{currentWinner?.id}
+                  {contest?.winner_selected_at && (
+                    <div className="mt-1">
+                      <strong>Selected:</strong> {formatDateTime(contest.winner_selected_at)}
+                    </div>
+                  )}
+                  {contest?.winner_phone && (
+                    <div>
+                      <strong>Winner Phone:</strong> {contest.winner_phone}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <button
                 onClick={handleSelectWinner}
-                disabled={isSelectingWinner || hasWinner}
+                disabled={isSelectingWinner || !canSelectWinner}
                 className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSelectingWinner ? (
@@ -404,8 +604,12 @@ const ContestEntries: React.FC = () => {
                   </div>
                 ) : hasWinner ? (
                   '🏆 Winner Already Selected'
-                ) : (
+                ) : contestActive ? (
+                  '⏰ Contest Must End First'
+                ) : contestInactive ? (
                   '🎲 Select Random Winner'
+                ) : (
+                  '❓ Unknown Contest State'
                 )}
               </button>
             </div>
@@ -414,8 +618,18 @@ const ContestEntries: React.FC = () => {
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="text-sm font-medium text-gray-900 mb-2">SMS Notification</h3>
               <p className="text-sm text-gray-600 mb-4">
-                Send congratulatory SMS to the selected winner
+                {hasWinner 
+                  ? `Send congratulatory SMS to Entry #${currentWinner?.id}`
+                  : 'Select a winner first to enable SMS notifications'
+                }
               </p>
+              
+              {hasWinner && currentWinner && (
+                <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+                  📱 Ready to notify: {formatPhoneNumber(currentWinner.phone_number)}
+                </div>
+              )}
+              
               <button
                 onClick={() => {
                   if (currentWinner) {
@@ -426,12 +640,12 @@ const ContestEntries: React.FC = () => {
                 disabled={!hasWinner || !currentWinner}
                 className="w-full px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {hasWinner ? '📱 Send SMS to Winner' : '📱 Select Winner First'}
+                {hasWinner && currentWinner ? '📱 Send SMS to Winner' : '📱 Select Winner First'}
               </button>
             </div>
           </div>
 
-          {/* Winner Details */}
+                      {/* Winner Details */}
           {hasWinner && currentWinner && (
             <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
               <h4 className="text-sm font-medium text-purple-900 mb-2">🏆 Contest Winner</h4>
@@ -451,6 +665,139 @@ const ContestEntries: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* SMS Notification History */}
+          {hasWinner && currentWinner && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-blue-900">📧 SMS Notification History</h4>
+                {loadingLogs && (
+                  <div className="flex items-center text-xs text-blue-600">
+                    <svg className="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading...
+                  </div>
+                )}
+              </div>
+              
+              {winnerNotificationLogs.length === 0 ? (
+                <div className="text-xs text-blue-600 text-center py-2">
+                  {loadingLogs ? 'Loading notification history...' : 'No SMS notifications sent to this winner yet.'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {winnerNotificationLogs.map((log) => (
+                    <div 
+                      key={log.id} 
+                      className={`p-3 rounded-lg border text-xs ${
+                        log.status === 'sent' 
+                          ? 'bg-green-50 border-green-200 text-green-800' 
+                          : log.status === 'failed'
+                          ? 'bg-red-50 border-red-200 text-red-800'
+                          : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full font-medium ${
+                              log.status === 'sent' 
+                                ? 'bg-green-100 text-green-800' 
+                                : log.status === 'failed'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {log.status === 'sent' && '✅'}
+                              {log.status === 'failed' && '❌'}
+                              {log.status === 'pending' && '⏳'}
+                              {' '}
+                              {log.status.toUpperCase()}
+                            </span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                              log.notification_type === 'winner' 
+                                ? 'bg-purple-100 text-purple-800'
+                                : log.notification_type === 'reminder'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {log.notification_type}
+                            </span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                              log.test_mode 
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {log.test_mode ? '🧪 Test' : '📱 Real'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-700 mb-1">
+                            <strong>Message:</strong> {log.message}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            <strong>Sent:</strong> {new Date(log.sent_at).toLocaleString()}
+                            {log.twilio_sid && (
+                              <span className="ml-2">
+                                <strong>Twilio ID:</strong> {log.twilio_sid.substring(0, 12)}...
+                              </span>
+                            )}
+                          </div>
+                          {log.error_message && (
+                            <div className="text-xs text-red-600 mt-1">
+                              <strong>Error:</strong> {log.error_message}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="mt-3 pt-2 border-t border-blue-200">
+                <div className="flex items-center justify-between text-xs text-blue-600">
+                  <span>Entry #{currentWinner.id} • {formatPhoneNumber(currentWinner.phone_number)}</span>
+                  <button
+                    onClick={() => {
+                      if (contest?.winner_entry_id) {
+                        fetchWinnerNotificationLogs(contest.winner_entry_id);
+                      }
+                    }}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Refresh Logs
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Debug Info (Development Only) */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <details>
+                <summary className="text-sm font-medium text-gray-700 cursor-pointer">🔧 Debug Info</summary>
+                <div className="mt-2 text-xs text-gray-600 space-y-1">
+                  <div><strong>Contest ID:</strong> {contest_id}</div>
+                  <div><strong>Contest Name:</strong> {contest?.name}</div>
+                                <div><strong>Contest Status:</strong> {contestActive ? '🟢 Active' : contestInactive ? '🔴 Inactive' : '❓ Unknown'}</div>
+              <div><strong>Contest Backend Status:</strong> {contest?.status || 'N/A'}</div>
+              <div><strong>Entries Count:</strong> {entries.length}</div>
+              <div><strong>Has Winner:</strong> {hasWinner ? `✅ Yes (Entry #${currentWinner?.id})` : '❌ No'}</div>
+              <div><strong>Can Select Winner:</strong> {canSelectWinner ? '✅ Yes' : '❌ No'}</div>
+              <div><strong>Winner Entry Status:</strong> {currentWinner?.status || 'N/A'}</div>
+              <div><strong>Winner Selected:</strong> {currentWinner?.selected ? '✅ Yes' : '❌ No'}</div>
+              <div><strong>Contest Winner ID:</strong> {contest?.winner_entry_id || 'N/A'}</div>
+              <div><strong>Winner Selected At:</strong> {contest?.winner_selected_at || 'N/A'}</div>
+              <div><strong>Winner Phone (Masked):</strong> {contest?.winner_phone || 'N/A'}</div>
+                  <div><strong>Admin Token:</strong> {getAdminToken() ? '✅ Present' : '❌ Missing'}</div>
+                  <div><strong>API Base URL:</strong> {apiBaseUrl}</div>
+                  <div><strong>Endpoint:</strong> {`${apiBaseUrl}/admin/contests/${contest_id}/select-winner`}</div>
+                </div>
+              </details>
             </div>
           )}
         </div>
@@ -504,37 +851,48 @@ const ContestEntries: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {formatPhoneNumber(entry.phone_number)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        ID: {entry.id}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDateTime(entry.entry_time || entry.created_at || '')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(entry.status || 'active')}`}>
-                        {entry.status || 'Active'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => {
-                          // TODO: Implement entry details view
-                          alert(`View details for entry ${entry.id}`);
-                        }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {sortedEntries.map((entry) => {
+                  const isWinner = entry.id === contest?.winner_entry_id || 
+                                 entry.status === 'winner' || 
+                                 entry.selected === true;
+                  return (
+                    <tr key={entry.id} className={`hover:bg-gray-50 ${isWinner ? 'bg-purple-50 border-l-4 border-purple-400' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 flex items-center">
+                          {isWinner && <span className="mr-2">🏆</span>}
+                          {formatPhoneNumber(entry.phone_number)}
+                          {isWinner && <span className="ml-2 px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full font-semibold">WINNER</span>}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          ID: {entry.id}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatDateTime(entry.entry_time || entry.created_at || '')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(entry.status || 'active')}`}>
+                          {isWinner ? '🏆 Winner' : (entry.status || 'Active')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {isWinner ? (
+                          <span className="text-purple-600 font-medium">🎉 Contest Winner</span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              // TODO: Implement entry details view
+                              alert(`View details for entry ${entry.id}`);
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            View Details
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

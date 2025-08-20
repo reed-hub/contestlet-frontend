@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { logout, isAdminAuthenticated, getAdminToken, clearAllTokens } from '../utils/auth';
+import { datetimeLocalToUTC, createDefaultContestDates, getAdminTimezone, getTimezoneDisplayName, getTimezoneAbbreviation } from '../utils/timezone';
 import Toast from '../components/Toast';
 
 interface ContestFormData {
@@ -44,26 +45,14 @@ const NewContest: React.FC = () => {
     }
   }, [navigate]);
 
-  // Set default dates on component mount
+  // Set default dates on component mount using admin's timezone
   useEffect(() => {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0); // 9 AM tomorrow
-
-    const nextWeek = new Date(now);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    nextWeek.setHours(17, 0, 0, 0); // 5 PM next week
-
-    const formatDateTime = (date: Date) => {
-      return date.toISOString().slice(0, 16); // Format for datetime-local input
-    };
-
     if (!formData.start_date || !formData.end_date) {
+      const defaultDates = createDefaultContestDates();
       setFormData(prev => ({
         ...prev,
-        start_date: prev.start_date || formatDateTime(tomorrow),
-        end_date: prev.end_date || formatDateTime(nextWeek)
+        start_date: prev.start_date || defaultDates.start_date,
+        end_date: prev.end_date || defaultDates.end_date
       }));
     }
   }, [formData.start_date, formData.end_date]);
@@ -145,20 +134,25 @@ const NewContest: React.FC = () => {
         return;
       }
       
-      // Transform data to match API format
+      // Transform data to match API format with timezone conversion
+      // Convert times from user's preference timezone to UTC for backend storage
+      const adminTimezone = getAdminTimezone();
+      const startTimeUTC = datetimeLocalToUTC(formData.start_date, adminTimezone);
+      const endTimeUTC = datetimeLocalToUTC(formData.end_date, adminTimezone);
+      
       const apiPayload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        start_time: formData.start_date,
-        end_time: formData.end_date,
+        start_time: startTimeUTC,
+        end_time: endTimeUTC,
         location: formData.location.trim() || 'Online',
         active: true,
         prize_description: formData.prize_description.trim(),
         official_rules: {
           eligibility_text: formData.eligibility_text.trim(),
           sponsor_name: 'Contestlet',
-          start_date: formData.start_date,
-          end_date: formData.end_date,
+          start_date: startTimeUTC,
+          end_date: endTimeUTC,
           prize_value_usd: parseFloat(formData.prize_value),
           terms_url: 'https://contestlet.com/terms'
         }
@@ -281,6 +275,12 @@ const NewContest: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Create New Contest</h1>
             <p className="text-gray-600 mt-1">Fill in the details to create a new contest</p>
+            <p className="text-sm text-blue-600 mt-1">
+              🕐 All times in <strong>{getTimezoneDisplayName(getAdminTimezone())}</strong> - displayed in your preferred timezone, stored as UTC
+              <Link to="/admin/profile" className="ml-2 underline hover:text-blue-800">
+                Change timezone
+              </Link>
+            </p>
           </div>
           <div className="flex space-x-4">
             <Link
@@ -434,7 +434,7 @@ const NewContest: React.FC = () => {
             {/* Start Date */}
             <div>
               <label htmlFor="start_date" className="block text-sm font-medium text-gray-700 mb-2">
-                Start Date *
+                Start Date ({getTimezoneAbbreviation(getAdminTimezone())}) *
               </label>
               <input
                 type="datetime-local"
@@ -451,7 +451,7 @@ const NewContest: React.FC = () => {
             {/* End Date */}
             <div>
               <label htmlFor="end_date" className="block text-sm font-medium text-gray-700 mb-2">
-                End Date *
+                End Date ({getTimezoneAbbreviation(getAdminTimezone())}) *
               </label>
               <input
                 type="datetime-local"

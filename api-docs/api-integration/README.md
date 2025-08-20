@@ -38,6 +38,10 @@ Welcome to the Contestlet API integration documentation! This directory contains
 - ⚠️ Comprehensive error handling
 - 🌍 Geolocation utilities
 - 🛡️ Admin operations support
+- 📧 **NEW**: SMS notification management with audit logging
+- 📊 **NEW**: Comprehensive notification logs API
+- 🌍 **NEW**: Full timezone support with admin preferences
+- ⏰ **NEW**: UTC storage with local timezone display
 - 📦 Compatible with React, Vue, Angular, and vanilla JS
 
 ### 🎪 [Interactive Demo](./demo.html)
@@ -53,6 +57,9 @@ Welcome to the Contestlet API integration documentation! This directory contains
 - 🔧 Admin operations interface
 - 🚨 **NEW**: Enhanced SMS winner notifications with security
 - 🧪 **NEW**: Test mode for SMS simulation
+- 📊 **NEW**: SMS notification audit trail with filtering
+- 🌍 **NEW**: Timezone-aware contest creation and display
+- ⏰ **NEW**: Admin timezone preference management
 - 📋 Real-time API response logging
 
 ---
@@ -121,6 +128,11 @@ Keep the [API Quick Reference](./API_QUICK_REFERENCE.md) handy for endpoint look
 - **Interactive Docs:** http://localhost:8000/docs
 - **ReDoc:** http://localhost:8000/redoc
 - **Health Check:** http://localhost:8000/
+
+### Timezone Documentation
+- **📍 [Comprehensive Timezone Guide](../TIMEZONE_GUIDE.md)**: Complete guide to timezone handling, best practices, and troubleshooting
+- **🌍 Timezone Support**: UTC storage with admin timezone preferences
+- **⏰ Contest Creation**: Timezone-aware contest scheduling
 
 ### Code Examples
 The integration guide includes complete examples for:

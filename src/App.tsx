@@ -9,7 +9,10 @@ import MyEntries from './pages/MyEntries';
 import AdminLogin from './pages/AdminLogin';
 import AdminContests from './pages/AdminContests';
 import NewContest from './pages/NewContest';
+import EditContest from './pages/EditContest';
 import ContestEntries from './pages/ContestEntries';
+import NotificationLogs from './pages/NotificationLogs';
+import AdminProfile from './pages/AdminProfile';
 
 function App() {
   return (
@@ -24,7 +27,10 @@ function App() {
           <Route path="admin" element={<AdminLogin />} />
           <Route path="admin/contests" element={<AdminContests />} />
           <Route path="admin/contests/new" element={<NewContest />} />
+          <Route path="admin/contests/:contest_id/edit" element={<EditContest />} />
           <Route path="admin/contests/:contest_id/entries" element={<ContestEntries />} />
+          <Route path="admin/notifications" element={<NotificationLogs />} />
+          <Route path="admin/profile" element={<AdminProfile />} />
         </Route>
       </Routes>
     </Router>
