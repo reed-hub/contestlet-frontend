@@ -1,17 +1,21 @@
 {
   "git": {
     "deploymentEnabled": {
+      "develop": false,
       "staging": true,
       "main": true
-    }
-  },
-  "env": {
-    "REACT_APP_ENVIRONMENT": "staging"
+    },
+    "productionBranch": "main"
   },
   "regions": ["iad1"],
   "framework": "create-react-app",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "installCommand": "npm install",
-  "devCommand": "npm start"
+  "devCommand": "npm start",
+  "functions": {
+    "app/**": {
+      "maxDuration": 30
+    }
+  }
 }
