@@ -5,6 +5,7 @@ import { deleteContest } from '../utils/adminApi';
 import { formatDateInAdminTimezone, parseBackendUtcDate } from '../utils/timezone';
 import CountdownTimer from '../components/CountdownTimer';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ImportCampaignModal from '../components/ImportCampaignModal';
 
 interface Contest {
   id: number;
@@ -42,6 +43,9 @@ const AdminContests: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [contestToDelete, setContestToDelete] = useState<Contest | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Import campaign state
+  const [importModalOpen, setImportModalOpen] = useState(false);
   
   const navigate = useNavigate();
 
@@ -300,6 +304,12 @@ const AdminContests: React.FC = () => {
             >
               + Create New Contest
             </Link>
+            <button
+              onClick={() => setImportModalOpen(true)}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-600 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+            >
+              📋 Import Contest
+            </button>
             <Link
               to="/admin/notifications"
               className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
@@ -740,6 +750,16 @@ const AdminContests: React.FC = () => {
         cancelText="Cancel"
         isDangerous={true}
         isLoading={deleteLoading}
+      />
+      
+      <ImportCampaignModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onSuccess={(contestId) => {
+          setImportModalOpen(false);
+          fetchContests(); // Refresh the contest list
+          navigate(`/admin/contests/${contestId}`);
+        }}
       />
     </div>
   );

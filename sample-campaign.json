@@ -1,0 +1,26 @@
+{
+  "name": "Margarita Monday Mystery",
+  "description": "Each Monday, one lucky SMS subscriber wins a margarita + taco combo. Others get smaller perks.",
+  "day": "Monday",
+  "duration_days": 1,
+  "entry_type": "SMS opt-in",
+  "reward_logic": {
+    "type": "random_winner",
+    "winner_reward": "Free margarita + taco",
+    "consolation_offer": "$2 off margaritas"
+  },
+  "messaging": {
+    "initial_sms": "You're in! Margarita Monday winner announced tonight 🍹",
+    "winner_sms": "🎉 You won Margarita Monday! Come in for your free drink + taco.",
+    "non_winner_sms": "No win this week—but enjoy $2 off margaritas tonight 🍹"
+  },
+  "promotion_channels": [
+    "in-store signage",
+    "Instagram",
+    "SMS reminder"
+  ],
+  "activation_hooks": [
+    "show_sms_for_offer",
+    "winner_announcement_in_IG_story"
+  ]
+}
