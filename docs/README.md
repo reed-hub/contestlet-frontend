@@ -26,6 +26,7 @@ API integration and frontend development:
 
 ### 🐛 [Troubleshooting](./troubleshooting/)
 Common issues and solutions:
+- **[Backend Server Not Running](./troubleshooting/BACKEND_SERVER_NOT_RUNNING.md)** - Local backend startup issues
 - **[Local Development CORS](./troubleshooting/LOCAL_DEVELOPMENT_CORS_ISSUE.md)** - Local API connectivity blocked
 - **[Staging CORS Issue](./troubleshooting/STAGING_CORS_ISSUE_REPORT.md)** - Staging API connectivity problems
 - **[Contest Entry Bug Report](./troubleshooting/CONTEST_ENTRY_BUG_REPORT.md)** - Contest entry issues
