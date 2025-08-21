@@ -12,5 +12,29 @@
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "installCommand": "npm ci --omit=dev",
-  "devCommand": "npm start"
+  "devCommand": "npm start",
+  "headers": [
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "source": "/(favicon.ico|logo192.png|logo512.png|robots.txt)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    }
+  ]
 }
