@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { logout, isAdminAuthenticated, getAdminToken } from '../utils/auth';
 import { formatPhoneNumber } from '../utils/phoneValidation';
+import { parseBackendUtcDate } from '../utils/timezone';
 import Toast from '../components/Toast';
 
 interface ContestEntry {
@@ -445,9 +446,13 @@ const ContestEntries: React.FC = () => {
     ? entries.find(e => e.id === contest?.winner_entry_id)
     : entries.find(e => e.status === 'winner' || e.selected === true);
   
-  // Contest status logic
-  const contestActive = contest?.active === true;
-  const contestInactive = contest?.active === false;
+  // Contest status logic - check both active flag AND end time
+  const now = new Date();
+  const endTime = contest?.end_time ? parseBackendUtcDate(contest.end_time) : null;
+  const hasEnded = endTime ? now > endTime : false;
+  
+  const contestActive = contest?.active === true && !hasEnded;
+  const contestInactive = contest?.active === false || hasEnded;
   const canSelectWinner = contestInactive && !hasWinner;
   
   // Sort entries to show winner first
@@ -783,11 +788,15 @@ const ContestEntries: React.FC = () => {
                 <div className="mt-2 text-xs text-gray-600 space-y-1">
                   <div><strong>Contest ID:</strong> {contest_id}</div>
                   <div><strong>Contest Name:</strong> {contest?.name}</div>
-                                <div><strong>Contest Status:</strong> {contestActive ? '🟢 Active' : contestInactive ? '🔴 Inactive' : '❓ Unknown'}</div>
-              <div><strong>Contest Backend Status:</strong> {contest?.status || 'N/A'}</div>
-              <div><strong>Entries Count:</strong> {entries.length}</div>
-              <div><strong>Has Winner:</strong> {hasWinner ? `✅ Yes (Entry #${currentWinner?.id})` : '❌ No'}</div>
-              <div><strong>Can Select Winner:</strong> {canSelectWinner ? '✅ Yes' : '❌ No'}</div>
+                  <div><strong>Contest Status:</strong> {contestActive ? '🟢 Active' : contestInactive ? '🔴 Inactive' : '❓ Unknown'}</div>
+                  <div><strong>Contest Backend Status:</strong> {contest?.status || 'N/A'}</div>
+                  <div><strong>Contest Active Flag:</strong> {contest?.active ? '✅ True' : '❌ False'}</div>
+                  <div><strong>Contest End Time:</strong> {contest?.end_time || 'N/A'}</div>
+                  <div><strong>Current Time:</strong> {new Date().toISOString()}</div>
+                  <div><strong>Has Ended (Time Check):</strong> {hasEnded ? '✅ Yes' : '❌ No'}</div>
+                  <div><strong>Entries Count:</strong> {entries.length}</div>
+                  <div><strong>Has Winner:</strong> {hasWinner ? `✅ Yes (Entry #${currentWinner?.id})` : '❌ No'}</div>
+                  <div><strong>Can Select Winner:</strong> {canSelectWinner ? '✅ Yes' : '❌ No'}</div>
               <div><strong>Winner Entry Status:</strong> {currentWinner?.status || 'N/A'}</div>
               <div><strong>Winner Selected:</strong> {currentWinner?.selected ? '✅ Yes' : '❌ No'}</div>
               <div><strong>Contest Winner ID:</strong> {contest?.winner_entry_id || 'N/A'}</div>
