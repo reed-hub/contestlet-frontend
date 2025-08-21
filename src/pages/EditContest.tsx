@@ -716,7 +716,7 @@ const EditContest: React.FC = () => {
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Backend API support pending - see BACKEND_DELETE_CONTEST_REQUIREMENTS.md
+Permanently remove this contest and all associated data
         </p>
       </div>
 

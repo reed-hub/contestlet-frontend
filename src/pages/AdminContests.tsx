@@ -671,9 +671,7 @@ const AdminContests: React.FC = () => {
                         </svg>
                         Delete Contest
                       </button>
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Backend API support pending
-                      </p>
+
                     </div>
                   </div>
 
@@ -721,9 +719,7 @@ const AdminContests: React.FC = () => {
                         </svg>
                         Delete Contest
                       </button>
-                      <p className="text-xs text-gray-500 mt-1 text-center">
-                        Backend API support pending
-                      </p>
+
                     </div>
                   </div>
                 </div>
