@@ -1,0 +1,71 @@
+# Vercel ignore file - exclude large files from deployment
+# Documentation: https://vercel.com/docs/concepts/projects/project-configuration#vercelignore
+
+# Dependencies (Vercel installs these automatically)
+node_modules/
+
+# Development files
+.git/
+.gitignore
+.env.local
+.env.development
+.env.test
+
+# Documentation and guides (reduce bundle size)
+*.md
+BACKEND_*.md
+FRONTEND_*.md
+TIMEZONE_*.md
+CONTEST_*.md
+WINNER_*.md
+PROPER_*.md
+DEBUG_*.md
+GITHUB_*.md
+VERCEL_*.md
+ENVIRONMENT_*.md
+STAGING_*.md
+AUTOMATED_*.md
+LOCAL_*.md
+PRODUCTION_*.md
+
+# Test files
+**/*.test.js
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.js
+**/*.spec.ts
+**/*.spec.tsx
+src/**/__tests__/
+src/**/tests/
+
+# Development scripts and configs
+test-*.js
+verify-*.js
+environments/
+scripts/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts (except the final build)
+.cache/
+coverage/
+
+# Temporary files
+*.tmp
+*.temp

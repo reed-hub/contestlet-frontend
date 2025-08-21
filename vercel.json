@@ -11,6 +11,6 @@
   "framework": "create-react-app",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
-  "installCommand": "npm install",
+  "installCommand": "npm ci --omit=dev",
   "devCommand": "npm start"
 }
