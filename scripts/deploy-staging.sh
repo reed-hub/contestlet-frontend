@@ -41,9 +41,9 @@ echo "🏗️ Building application for staging..."
 npm ci
 npm run build
 
-# Deploy to Vercel
-echo "🚀 Deploying to Vercel staging..."
-vercel --prod --env-file environments/staging.env
+# Deploy to Vercel Preview (not Production!)
+echo "🚀 Deploying to Vercel Preview environment..."
+vercel --env REACT_APP_API_BASE_URL=https://staging-api.contestlet.com --env REACT_APP_ENVIRONMENT=staging
 
 # Post-deployment health check
 echo "🏥 Running health checks..."

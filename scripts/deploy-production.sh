@@ -62,8 +62,8 @@ fi
 echo "✅ Production build successful"
 
 # Deploy to Vercel Production
-echo "🚀 Deploying to Vercel production..."
-vercel --prod --env-file environments/production.env
+echo "🚀 Deploying to Vercel Production environment..."
+vercel --prod --env REACT_APP_API_BASE_URL=https://api.contestlet.com --env REACT_APP_ENVIRONMENT=production
 
 # Post-deployment health check
 echo "🏥 Running production health checks..."

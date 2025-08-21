@@ -4,10 +4,8 @@
       "develop": false,
       "staging": true,
       "main": true
-    }
-  },
-  "env": {
-    "REACT_APP_ENVIRONMENT": "@vercel-env-environment"
+    },
+    "productionBranch": "main"
   },
   "regions": ["iad1"],
   "framework": "create-react-app",
