@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 
 const AdminLogin: React.FC = () => {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('18187958204'); // Default admin phone
+  const [phoneNumber, setPhoneNumber] = useState(''); // No default admin phone for security
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
