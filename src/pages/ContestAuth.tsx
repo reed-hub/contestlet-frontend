@@ -1,8 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { formatPhoneNumber, validateUSPhoneNumber, getCleanPhoneNumber } from '../utils/phoneValidation';
 import { setUserToken, setUserPhone } from '../utils/auth';
 import Toast from '../components/Toast';
+
+interface Contest {
+  id: string;
+  name: string;
+  description: string;
+  location: string;
+  start_time: string;
+  end_time: string;
+  prize_description: string;
+  image_url?: string;
+  official_rules?: {
+    eligibility_text: string;
+    sponsor_name: string;
+    start_date: string;
+    end_date: string;
+    prize_value_usd: number;
+    terms_url: string;
+  };
+}
 
 const ContestAuth: React.FC = () => {
   const { contest_id } = useParams<{ contest_id: string }>();
@@ -15,6 +34,7 @@ const ContestAuth: React.FC = () => {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
+  const [contest, setContest] = useState<Contest | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
@@ -22,6 +42,54 @@ const ContestAuth: React.FC = () => {
   }>({ type: 'info', message: '', isVisible: false });
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+  // Sample contest data for demonstration
+  const sampleContest: Contest = {
+    id: contest_id || 'sample-1',
+    name: 'The Island of Maui Adventure of a Lifetime',
+    description: 'Get ready to pack your bags – you could win the trip of a lifetime to Hawai\'i for 2!',
+    location: 'United States',
+    start_time: new Date().toISOString(),
+    end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+    prize_description: 'Two (2) roundtrip tickets on Southwest Airlines from Dallas to Maui, HI\nA 3-night stay, double occupancy, at the Grand Manila Hotel Hilo on the island of Hawai\'i (subject to availability at the time of booking)\nA 2-night stay, double occupancy, at the Royal Kona Resort on the island of Hawaii (subject to availability at the time of booking)\nA Snorkel Adventure or Evening Manta Swim for two (2) guests with Fair Wind Cruises on the beautiful Kona Coast\nKilauea Volcano and Dinner Tour for two (2) guests with Kailani Tours\nUmauma Experience Zipline Adventure for two (2) guests',
+    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop&crop=center', // Sample Maui resort image
+    official_rules: {
+      eligibility_text: 'Open to all participants. Must be 18 years or older.',
+      sponsor_name: 'Travel Adventure Show',
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      prize_value_usd: 5000,
+      terms_url: 'https://example.com/terms'
+    }
+  };
+
+  // Fetch contest data on component mount
+  useEffect(() => {
+    const fetchContest = async () => {
+      if (!contest_id) {
+        setContest(sampleContest);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${apiBaseUrl}/contest/${contest_id}`);
+        
+        if (response.ok) {
+          const contestData: Contest = await response.json();
+          setContest(contestData);
+        } else {
+          // Fall back to sample data if contest not found
+          setContest(sampleContest);
+        }
+      } catch (err) {
+        // Fall back to sample data on error
+        console.log('Using sample contest data due to:', err);
+        setContest(sampleContest);
+      }
+    };
+
+    fetchContest();
+  }, [contest_id, apiBaseUrl]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
@@ -107,27 +175,24 @@ const ContestAuth: React.FC = () => {
         },
         body: JSON.stringify({
           phone: getCleanPhoneNumber(phoneNumber),
-          code: otpCode,
+          otp: otpCode,
         }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        // Store the user token and phone number
-        setUserToken(data.access_token);
+      if (response.ok && data.token) {
+        setUserToken(data.token);
         setUserPhone(phoneNumber);
         
         setToast({
           type: 'success',
-          message: 'Phone verified via Twilio! Entering contest...',
+          message: 'Phone verified successfully!',
           isVisible: true,
         });
 
-        // Proceed to enter the contest automatically
-        setTimeout(() => {
-          enterContest(data.access_token);
-        }, 1000);
+        // Enter the contest
+        await enterContest(data.token);
       } else {
         setOtpError(data.message || 'Invalid verification code');
       }
@@ -212,8 +277,44 @@ const ContestAuth: React.FC = () => {
     setOtpError(null);
   };
 
+  const getTimeRemaining = () => {
+    if (!contest?.end_time) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    
+    const now = new Date().getTime();
+    const endTime = new Date(contest.end_time).getTime();
+    const timeLeft = endTime - now;
+    
+    if (timeLeft <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    
+    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    
+    return { days, hours, minutes, seconds };
+  };
+
+  // Countdown timer effect
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemaining());
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeRemaining(getTimeRemaining());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [contest?.end_time]);
+
+  if (!contest) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50">
       <Toast
         type={toast.type}
         message={toast.message}
@@ -221,135 +322,206 @@ const ContestAuth: React.FC = () => {
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
       />
       
-      <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {step === 'phone' ? 'Enter Contest' : 'Verify Your Phone'}
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+          {/* Hero Image Section - 1:1 Format */}
+          {contest.image_url && (
+            <div className="relative w-full aspect-square">
+              <img 
+                src={contest.image_url} 
+                alt={contest.name}
+                className="w-full h-full object-cover"
+              />
+              {/* Optional overlay for text readability */}
+              <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+            </div>
+          )}
+          
+          {/* Contest Information Section */}
+          <div className="p-6 space-y-6">
+            {/* Travel Adventure Show Label */}
+            <div className="text-blue-600 text-sm font-medium">
+              Travel Adventure Show
+            </div>
+            
+            {/* Contest Title */}
+            <h1 className="text-3xl font-bold text-gray-900 leading-tight">
+              {contest.name}
             </h1>
-            <p className="text-gray-600">
-              {step === 'phone' 
-                ? 'Enter your phone number to participate in the contest'
-                : `We sent a 6-digit code to ${phoneNumber}`
-              }
-            </p>
-            {contest_id && (
-              <div className="mt-4 px-4 py-2 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">Contest ID: {contest_id}</p>
+            
+            {/* Location and End Time */}
+            <div className="flex items-center space-x-6 text-sm text-gray-600">
+              <div className="flex items-center">
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>{contest.location || 'United States'}</span>
               </div>
-            )}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {step === 'phone' ? (
-              <>
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    value={phoneNumber}
-                    onChange={handlePhoneChange}
-                    placeholder="(555) 123-4567"
-                    maxLength={14}
-                    className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                      phoneError ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                    disabled={isLoading}
-                  />
-                  {phoneError && (
-                    <p className="mt-2 text-sm text-red-600">{phoneError}</p>
-                  )}
+              <div className="flex items-center">
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Ends {timeRemaining.days}:{timeRemaining.hours.toString().padStart(2, '0')}:{timeRemaining.minutes.toString().padStart(2, '0')}:{timeRemaining.seconds.toString().padStart(2, '0')}</span>
+              </div>
+            </div>
+            
+            {/* Contest Description */}
+            <p className="text-gray-700 text-lg leading-relaxed">
+              {contest.description}
+            </p>
+            
+            {/* What You Can Win Section */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">What you can win</h2>
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <div className="text-center mb-4">
+                  <div className="text-3xl mb-2">👑</div>
+                  <div className="text-sm text-gray-600 font-medium">1 WINNER</div>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading || !phoneNumber.trim() || !!retryAfter}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white text-lg font-semibold py-3 px-8 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Sending Code...
+                <div className="space-y-3">
+                  {contest.prize_description.split('\n').map((prize, index) => (
+                    <div key={index} className="flex items-start">
+                      <span className="text-gray-900 mr-3">•</span>
+                      <span className="text-gray-900 text-sm">{prize.trim()}</span>
                     </div>
-                  ) : retryAfter ? (
-                    `Wait ${retryAfter}s`
-                  ) : (
-                    '📱 Send Verification Code'
-                  )}
-                </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
-                    Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    value={otpCode}
-                    onChange={handleOtpChange}
-                    placeholder="123456"
-                    maxLength={6}
-                    className={`w-full px-4 py-3 border-2 rounded-xl text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                      otpError ? 'border-red-300' : 'border-gray-200'
-                    }`}
-                    disabled={isLoading}
-                  />
-                  {otpError && (
-                    <p className="mt-2 text-sm text-red-600">{otpError}</p>
-                  )}
+                  ))}
                 </div>
-
-                <div className="flex gap-4">
-                  <button
-                    type="button"
-                    onClick={backToPhone}
-                    className="flex-1 border-2 border-gray-300 text-gray-700 font-medium py-3 px-6 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-                    disabled={isLoading}
-                  >
-                    ← Back
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading || otpCode.length !== 6}
-                    className="flex-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Verifying...
-                      </div>
-                    ) : (
-                      '🎯 Enter Contest'
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-          </form>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>
-              {step === 'phone' 
-                ? 'We will send you a text message with a verification code via Twilio Verify'
-                : 'Didn\'t receive the code? Wait 60 seconds and go back to try again'
-              }
-            </p>
-            {step === 'otp' && process.env.NODE_ENV === 'development' && (
-              <div className="mt-2 p-2 bg-blue-50 rounded text-blue-700 text-xs">
-                💡 Development mode: Try code <code className="bg-blue-100 px-1 rounded">123456</code>
               </div>
-            )}
+            </div>
+            
+            {/* Official Rules Section */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Official Rules & Regulations</h3>
+              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+            
+            {/* Enter Now Section */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Enter Now</h2>
+              
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {step === 'phone' ? (
+                  <>
+                    {/* Phone Number Input */}
+                    <div>
+                      <input
+                        type="tel"
+                        id="phone"
+                        value={phoneNumber}
+                        onChange={handlePhoneChange}
+                        placeholder="(555) 555-1234"
+                        maxLength={14}
+                        className={`w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-lg ${
+                          phoneError ? 'border-red-300' : ''
+                        }`}
+                        disabled={isLoading}
+                      />
+                      {phoneError && (
+                        <p className="mt-2 text-sm text-red-600">{phoneError}</p>
+                      )}
+                    </div>
+                    
+                    {/* Send Code Button */}
+                    <button
+                      type="submit"
+                      disabled={isLoading || !phoneNumber.trim() || !!retryAfter}
+                      className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-lg"
+                    >
+                      {isLoading ? (
+                        <div className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Sending Code...
+                        </div>
+                      ) : retryAfter ? (
+                        `Wait ${retryAfter}s`
+                      ) : (
+                        '📱 Send Verification Code'
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* OTP Input */}
+                    <div>
+                      <input
+                        type="text"
+                        id="otp"
+                        value={otpCode}
+                        onChange={handleOtpChange}
+                        placeholder="123456"
+                        maxLength={6}
+                        className={`w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
+                          otpError ? 'border-red-300' : ''
+                        }`}
+                        disabled={isLoading}
+                      />
+                      {otpError && (
+                        <p className="mt-2 text-sm text-red-600">{otpError}</p>
+                      )}
+                    </div>
+                    
+                    {/* OTP Action Buttons */}
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={backToPhone}
+                        className="flex-1 border-2 border-gray-300 text-gray-700 font-medium py-3 px-6 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors"
+                        disabled={isLoading}
+                      >
+                        ← Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isLoading || otpCode.length !== 6}
+                        className="flex-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                      >
+                        {isLoading ? (
+                          <div className="flex items-center justify-center">
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Verifying...
+                          </div>
+                        ) : (
+                          '🎯 Enter Contest'
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+                
+                {/* Verification Message */}
+                <p className="text-sm text-gray-600 text-center">
+                  {step === 'phone' 
+                    ? 'We will send you a text message with a verification code to verify your entry. No purchase necessary. See rules.'
+                    : `We sent a 6-digit code to ${phoneNumber}. Didn't receive it? Wait 60 seconds and go back to try again.`
+                  }
+                  {step === 'phone' && (
+                    <button 
+                      type="button"
+                      className="text-blue-600 hover:text-blue-800 underline ml-1"
+                      onClick={() => alert('Rules would open here in production')}
+                    >
+                      See rules
+                    </button>
+                  )}
+                </p>
+                
+                {/* Development Mode Info */}
+                {step === 'otp' && process.env.NODE_ENV === 'development' && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded text-blue-700 text-xs text-center">
+                    💡 Development mode: Try code <code className="bg-blue-100 px-1 rounded">123456</code>
+                  </div>
+                )}
+              </form>
+            </div>
           </div>
         </div>
       </div>
