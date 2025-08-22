@@ -36,7 +36,7 @@ const NotificationLogs: React.FC = () => {
   }>({ type: 'info', message: '', isVisible: false });
   const navigate = useNavigate();
 
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
 
   // Check authentication on mount
   useEffect(() => {

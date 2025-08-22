@@ -33,7 +33,7 @@ const ContestEntryPage: React.FC = () => {
     isVisible: boolean;
   }>({ type: 'info', message: '', isVisible: false });
 
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
 
   // Fetch contest data on component mount
   useEffect(() => {

@@ -9,7 +9,7 @@ const ADMIN_TOKEN_KEY = 'contestlet_admin_token';
 // Admin role verification
 export const verifyAdminRole = async (token: string): Promise<boolean> => {
   try {
-    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
     const response = await fetch(`${apiBaseUrl}/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,

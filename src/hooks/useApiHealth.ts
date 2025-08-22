@@ -23,7 +23,7 @@ export const useApiHealth = () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }));
         
-        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
         const response = await fetch(`${apiBaseUrl}/`);
         
         if (!response.ok) {
