@@ -40,7 +40,7 @@ const ADMIN_TIMEZONE_AUTO_KEY = 'admin_timezone_auto_detect';
 
 // Backend API functions
 const getApiBaseUrl = () => {
-  return process.env.REACT_APP_API_BASE_URL || '';
+  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 };
 
 /**

@@ -86,7 +86,7 @@ const NewContest: React.FC = () => {
   }>({ type: 'info', message: '', isVisible: false });
   const navigate = useNavigate();
 
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
   // Helper function to map campaign data to form data
   const mapCampaignToFormData = (campaignData: any): ContestFormData => {

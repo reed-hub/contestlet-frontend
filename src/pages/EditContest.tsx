@@ -115,7 +115,7 @@ const EditContest: React.FC = () => {
   
   const navigate = useNavigate();
 
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
   // Check authentication on mount
   useEffect(() => {

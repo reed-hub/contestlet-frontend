@@ -52,7 +52,7 @@ const AdminLogin: React.FC = () => {
     }
 
     try {
-      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
       const response = await fetch(`${apiBaseUrl}/auth/request-otp`, {
         method: 'POST',
         headers: {
@@ -96,7 +96,7 @@ const AdminLogin: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
       
       // Step 1: Verify OTP and get JWT token
       const verifyResponse = await fetch(`${apiBaseUrl}/auth/verify-otp`, {
