@@ -39,7 +39,15 @@ export const deleteContest = async (contestId: string | number): Promise<{
     } else if (response.status === 405) {
       throw new Error('Contest deletion is not yet supported by the backend API. Please contact the backend team to implement DELETE /admin/contests/{id}.');
     } else if (response.status === 409) {
-      throw new Error('Cannot delete contest. It may have active entries or be in a protected state.');
+      // Try to get more specific error details from the backend
+      const errorData = await response.json().catch(() => null);
+      const specificMessage = errorData?.message || errorData?.detail;
+      
+      if (specificMessage) {
+        throw new Error(specificMessage);
+      } else {
+        throw new Error('Cannot delete contest. It may have active entries, be currently active, or be in a protected state.');
+      }
     } else {
         const errorData = await response.json().catch(() => null);
         const message = errorData?.message || errorData?.detail || `Server error (${response.status})`;

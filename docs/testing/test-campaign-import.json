@@ -1,0 +1,33 @@
+{
+  "name": "Summer Sweepstakes 2025",
+  "description": "Win amazing summer prizes including cash and gift cards!",
+  "location": "Boulder, CO",
+  "prize_description": "$1500 Cash Prize + $500 Gift Cards",
+  "duration_days": 7,
+  "contest_type": "sweepstakes",
+  "entry_method": "sms",
+  "winner_selection_method": "random",
+  "minimum_age": 21,
+  "max_entries_per_person": 3,
+  "total_entry_limit": 500,
+  "consolation_offer": "25% discount on next purchase",
+  "geographic_restrictions": "US residents only, excluding Alaska and Hawaii",
+  "contest_tags": ["summer", "sweepstakes", "mobile", "cash-prize"],
+  "promotion_channels": ["instagram", "facebook", "twitter", "sms", "email"],
+  "sms_templates": {
+    "entry_confirmation": "🎉 You're entered in {contest_name}! Prize: {prize_description}. Drawing on July 31st. Good luck! 🍀",
+    "winner_notification": "🏆 CONGRATULATIONS! You won {prize_description} in {contest_name}! Check your email within 24 hours for claim instructions. Winner! 🎊",
+    "non_winner": "Thanks for entering {contest_name}! You didn't win this time, but here's {consolation_offer}. Use code SUMMER25 at checkout! 🌞"
+  },
+  "official_rules": {
+    "eligibility_text": "Open to legal US residents 21 years or older. Employees of sponsor and their families are not eligible.",
+    "sponsor_name": "Summer Promotions LLC",
+    "prize_value_usd": 2000,
+    "terms_url": "https://summerpromotions.com/terms-2025"
+  },
+  "activation_hooks": [
+    "social_media_boost",
+    "email_campaign_trigger",
+    "sms_blast_notification"
+  ]
+}

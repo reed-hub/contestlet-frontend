@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { logout, isAdminAuthenticated, getAdminToken } from '../utils/auth';
+import { isAdminAuthenticated, getAdminToken } from '../utils/auth';
 import { deleteContest } from '../utils/adminApi';
 import { formatDateInAdminTimezone, parseBackendUtcDate } from '../utils/timezone';
 import CountdownTimer from '../components/CountdownTimer';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ImportCampaignModal from '../components/ImportCampaignModal';
+import Toast from '../components/Toast';
 
 interface Contest {
   id: number;
@@ -16,7 +18,8 @@ interface Contest {
   start_time: string;
   end_time: string;
   prize_description: string;
-  active: boolean;
+  active: boolean; // Keep for backward compatibility
+  status?: 'upcoming' | 'active' | 'ended' | 'complete'; // New server-provided status
   created_at: string;
   entry_count: number;
   official_rules?: {
@@ -34,7 +37,7 @@ const AdminContests: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'active' | 'inactive' | 'ended'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'active' | 'ended' | 'complete'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'start_time' | 'end_time' | 'entry_count'>('end_time');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
@@ -42,6 +45,16 @@ const AdminContests: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [contestToDelete, setContestToDelete] = useState<Contest | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Import campaign state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  
+  // Toast state
+  const [toast, setToast] = useState<{
+    type: 'success' | 'error' | 'info' | 'warning';
+    message: string;
+    isVisible: boolean;
+  }>({ type: 'info', message: '', isVisible: false });
   
   const navigate = useNavigate();
 
@@ -107,24 +120,7 @@ const AdminContests: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBaseUrl]);
 
-  // Auto-refresh when returning to the page (e.g., after creating a contest)
-  useEffect(() => {
-    const handleFocus = () => {
-      if (isAdminAuthenticated() && !loading) {
-        console.log('Page focused, refreshing contests...');
-        fetchContests();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/admin');
-  };
+  // Auto-refresh removed - users can manually refresh using the button in the header
 
   // Delete contest handlers
   const handleDeleteClick = (contest: Contest) => {
@@ -145,16 +141,28 @@ const AdminContests: React.FC = () => {
         setDeleteModalOpen(false);
         setContestToDelete(null);
         
-        // You could also show a success toast here if you want
-        console.log('Contest deleted successfully:', result.message);
+        // Show success toast
+        setToast({
+          type: 'success',
+          message: `Contest "${contestToDelete.name}" deleted successfully!`,
+          isVisible: true,
+        });
       } else {
-        // Handle error - could show an error toast
+        // Handle error with detailed toast
         console.error('Failed to delete contest:', result.message);
-        alert(`Failed to delete contest: ${result.message}`);
+        setToast({
+          type: 'error',
+          message: `Failed to delete "${contestToDelete.name}": ${result.message}`,
+          isVisible: true,
+        });
       }
     } catch (error) {
       console.error('Error during delete:', error);
-      alert('An unexpected error occurred while deleting the contest.');
+      setToast({
+        type: 'error',
+        message: `Error deleting "${contestToDelete.name}": ${error instanceof Error ? error.message : 'An unexpected error occurred'}`,
+        isVisible: true,
+      });
     } finally {
       setDeleteLoading(false);
     }
@@ -165,40 +173,18 @@ const AdminContests: React.FC = () => {
     setContestToDelete(null);
   };
 
-  const getStatusColor = (contest: Contest) => {
-    if (!contest.active) {
-      return 'bg-red-100 text-red-800';
-    }
+  const getStatusInfo = (contest: Contest) => {
+    // Use server-provided status if available, otherwise fallback to computed
+    const status = contest.status || 'upcoming';
     
-    const now = new Date();
-    const startTime = parseBackendUtcDate(contest.start_time);
-    const endTime = parseBackendUtcDate(contest.end_time);
+    const statusConfig = {
+      upcoming: { text: 'Upcoming', color: 'bg-blue-100 text-blue-800' },
+      active: { text: 'Active', color: 'bg-green-100 text-green-800' },
+      ended: { text: 'Ended', color: 'bg-red-100 text-red-800' },
+      complete: { text: 'Complete', color: 'bg-gray-100 text-gray-800' }
+    };
     
-    if (now < startTime) {
-      return 'bg-yellow-100 text-yellow-800'; // Scheduled
-    } else if (now > endTime) {
-      return 'bg-red-100 text-red-800'; // Ended
-    } else {
-      return 'bg-green-100 text-green-800'; // Active
-    }
-  };
-
-  const getStatusText = (contest: Contest) => {
-    if (!contest.active) {
-      return 'Inactive';
-    }
-    
-    const now = new Date();
-    const startTime = parseBackendUtcDate(contest.start_time);
-    const endTime = parseBackendUtcDate(contest.end_time);
-    
-    if (now < startTime) {
-      return 'Scheduled';
-    } else if (now > endTime) {
-      return 'Ended';
-    } else {
-      return 'Active';
-    }
+    return statusConfig[status as keyof typeof statusConfig] || statusConfig.upcoming;
   };
 
   // Filter and sort contests
@@ -209,27 +195,11 @@ const AdminContests: React.FC = () => {
                            contest.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            contest.id.toString().includes(searchTerm);
       
-      // Status filter
+      // Status filter - use server-provided status
       let matchesStatus = true;
       if (statusFilter !== 'all') {
-        const now = new Date();
-        const startTime = parseBackendUtcDate(contest.start_time);
-        const endTime = parseBackendUtcDate(contest.end_time);
-        
-        switch (statusFilter) {
-          case 'scheduled':
-            matchesStatus = contest.active && now < startTime;
-            break;
-          case 'active':
-            matchesStatus = contest.active && now >= startTime && now <= endTime;
-            break;
-          case 'inactive':
-            matchesStatus = !contest.active;
-            break;
-          case 'ended':
-            matchesStatus = now > endTime;
-            break;
-        }
+        const status = contest.status || 'upcoming';
+        matchesStatus = status === statusFilter;
       }
       
       return matchesSearch && matchesStatus;
@@ -279,6 +249,13 @@ const AdminContests: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <Toast
+        type={toast.type}
+        message={toast.message}
+        isVisible={toast.isVisible}
+        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
+      />
+      
       {/* Header */}
       <div className="bg-white shadow rounded-lg p-4 sm:p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
@@ -300,24 +277,13 @@ const AdminContests: React.FC = () => {
             >
               + Create New Contest
             </Link>
-            <Link
-              to="/admin/notifications"
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-            >
-              📧 SMS Logs
-            </Link>
-            <Link
-              to="/admin/profile"
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-            >
-              ⚙️ Profile
-            </Link>
             <button
-              onClick={handleLogout}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              onClick={() => setImportModalOpen(true)}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-600 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
             >
-              Logout
+              📋 Import Contest
             </button>
+
           </div>
         </div>
       </div>
@@ -459,10 +425,10 @@ const AdminContests: React.FC = () => {
               className="block w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
             >
               <option value="all">All Contests</option>
-              <option value="scheduled">Scheduled</option>
+              <option value="upcoming">Upcoming</option>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
               <option value="ended">Ended</option>
+              <option value="complete">Complete</option>
             </select>
           </div>
 
@@ -564,8 +530,8 @@ const AdminContests: React.FC = () => {
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate pr-2">
                       {contest.name}
                     </h3>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(contest)}`}>
-                      {getStatusText(contest)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(contest).color}`}>
+                      {getStatusInfo(contest).text}
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">ID: {contest.id}</p>
@@ -735,11 +701,25 @@ const AdminContests: React.FC = () => {
         onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
         title="Delete Contest"
-        message={`Are you sure you want to delete "${contestToDelete?.name}"? This action cannot be undone and will permanently remove the contest and all associated entries.`}
+        message={`Are you sure you want to delete "${contestToDelete?.name}"? 
+
+This action cannot be undone and will permanently remove the contest and all associated data.
+
+Note: Contests with active entries, ongoing campaigns, or in certain protected states cannot be deleted. If deletion fails, you may need to end the contest first or contact support.`}
         confirmText="Delete Contest"
         cancelText="Cancel"
         isDangerous={true}
         isLoading={deleteLoading}
+      />
+      
+      <ImportCampaignModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onSuccess={(contestId) => {
+          setImportModalOpen(false);
+          fetchContests(); // Refresh the contest list
+          navigate(`/admin/contests/${contestId}`);
+        }}
       />
     </div>
   );

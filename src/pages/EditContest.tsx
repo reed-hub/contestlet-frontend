@@ -7,15 +7,38 @@ import Toast from '../components/Toast';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 interface ContestFormData {
+  // Basic Information (8 fields)
   name: string;
   description: string;
-  start_date: string;
-  end_date: string;
   location: string;
   prize_description: string;
-  prize_value: string;
-  eligibility_text: string;
-  active: boolean;
+  start_date: string;
+  end_date: string;
+  prize_value: string; // Will map to official_rules.prize_value_usd
+  eligibility_text: string; // Will map to official_rules.eligibility_text
+  
+  // Advanced Options (10 fields)
+  contest_type: string; // 'general', 'sweepstakes', 'instant_win'
+  entry_method: string; // 'sms', 'email', 'web_form' (renamed from entry_type)
+  winner_selection_method: string; // 'random', 'scheduled', 'instant'
+  minimum_age: string; // 13-100, default 18
+  max_entries_per_person: string; // null = unlimited
+  total_entry_limit: string; // null = unlimited
+  consolation_offer: string; // renamed from consolation_prize
+  geographic_restrictions: string; // renamed from geographic_restriction
+  contest_tags: string; // comma-separated, will convert to array
+  promotion_channels: string[]; // array of strings
+  
+  // SMS Templates (3 fields)
+  entry_confirmation_sms: string; // renamed from initial_sms_template
+  winner_notification_sms: string; // renamed from winner_sms_template
+  non_winner_sms: string; // renamed from non_winner_sms_template
+  
+  // Legal Compliance (4 fields)
+  sponsor_name: string; // Will map to official_rules.sponsor_name
+  terms_url: string; // Will map to official_rules.terms_url
+  official_start_date: string; // Will map to official_rules.start_date
+  official_end_date: string; // Will map to official_rules.end_date
 }
 
 interface Contest {
@@ -43,18 +66,42 @@ const EditContest: React.FC = () => {
   const { contest_id } = useParams<{ contest_id: string }>();
   const [contest, setContest] = useState<Contest | null>(null);
   const [formData, setFormData] = useState<ContestFormData>({
+    // Basic Information
     name: '',
     description: '',
-    start_date: '',
-    end_date: '',
     location: '',
     prize_description: '',
+    start_date: '',
+    end_date: '',
     prize_value: '',
     eligibility_text: '',
-    active: true
+    
+    // Advanced Options - Default Values
+    contest_type: 'general',
+    entry_method: 'sms', // renamed from entry_type
+    winner_selection_method: 'random',
+    minimum_age: '18', // renamed from age_restriction
+    max_entries_per_person: '', // renamed from entry_limit_per_person
+    total_entry_limit: '',
+    consolation_offer: '', // renamed from consolation_prize
+    geographic_restrictions: '', // renamed from geographic_restriction
+    contest_tags: '',
+    promotion_channels: [],
+    
+    // SMS Templates
+    entry_confirmation_sms: '🎉 You\'re entered! Contest details: {contest_name}. Good luck!', // renamed from initial_sms_template
+    winner_notification_sms: '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}', // renamed from winner_sms_template
+    non_winner_sms: 'Thanks for participating in {contest_name}! {consolation_offer}', // renamed from non_winner_sms_template
+    
+    // Legal Compliance
+    sponsor_name: '',
+    terms_url: '',
+    official_start_date: '', // new field
+    official_end_date: '' // new field
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info' | 'warning';
@@ -120,16 +167,66 @@ const EditContest: React.FC = () => {
         const adminTimezone = getAdminTimezone();
         
         setFormData({
+          // Basic Information
           name: foundContest.name,
           description: foundContest.description,
-          start_date: utcToDatetimeLocal(foundContest.start_time, adminTimezone),
-          end_date: utcToDatetimeLocal(foundContest.end_time, adminTimezone),
           location: foundContest.location,
           prize_description: foundContest.prize_description,
+          start_date: utcToDatetimeLocal(foundContest.start_time, adminTimezone),
+          end_date: utcToDatetimeLocal(foundContest.end_time, adminTimezone),
           prize_value: foundContest.official_rules?.prize_value_usd?.toString() || '100',
           eligibility_text: foundContest.official_rules?.eligibility_text || 'Open to all participants. Must be 18 years or older.',
-          active: foundContest.active
+          
+          // Advanced Options - Extract from contest data or use defaults
+          contest_type: (foundContest as any).contest_type || 'general',
+          entry_method: (foundContest as any).entry_method || (foundContest as any).entry_type || 'sms', // renamed from entry_type
+          winner_selection_method: (foundContest as any).winner_selection_method || 'random',
+          minimum_age: ((foundContest as any).minimum_age || (foundContest as any).age_restriction || foundContest.official_rules?.age_restriction || '18').toString(), // renamed from age_restriction
+          max_entries_per_person: ((foundContest as any).max_entries_per_person || (foundContest as any).entry_limit_per_person)?.toString() || '', // renamed from entry_limit_per_person
+          total_entry_limit: (foundContest as any).total_entry_limit?.toString() || '',
+          consolation_offer: (foundContest as any).consolation_offer || (foundContest as any).consolation_prize || '', // renamed from consolation_prize
+          geographic_restrictions: (foundContest as any).geographic_restrictions || (foundContest as any).geographic_restriction || '', // renamed from geographic_restriction
+          contest_tags: Array.isArray((foundContest as any).contest_tags) ? (foundContest as any).contest_tags.join(', ') : 
+                       Array.isArray((foundContest as any).tags) ? (foundContest as any).tags.join(', ') : '',
+          promotion_channels: Array.isArray((foundContest as any).promotion_channels) ? (foundContest as any).promotion_channels : [],
+          
+          // SMS Templates - Extract from sms_templates or messaging
+          entry_confirmation_sms: (foundContest as any).sms_templates?.entry_confirmation || 
+                                 (foundContest as any).messaging?.initial_sms || 
+                                 '🎉 You\'re entered! Contest details: {contest_name}. Good luck!', // renamed from initial_sms_template
+          winner_notification_sms: (foundContest as any).sms_templates?.winner_notification || 
+                                  (foundContest as any).messaging?.winner_sms || 
+                                  '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}', // renamed from winner_sms_template
+          non_winner_sms: (foundContest as any).sms_templates?.non_winner || 
+                         (foundContest as any).messaging?.non_winner_sms || 
+                         'Thanks for participating in {contest_name}! {consolation_offer}', // renamed from non_winner_sms_template
+          
+          // Legal Compliance
+          sponsor_name: foundContest.official_rules?.sponsor_name || 'Contestlet',
+          terms_url: foundContest.official_rules?.terms_url || 'https://contestlet.com/terms',
+          official_start_date: foundContest.official_rules?.start_date ? 
+            utcToDatetimeLocal(foundContest.official_rules.start_date, adminTimezone) : '', // new field
+          official_end_date: foundContest.official_rules?.end_date ? 
+            utcToDatetimeLocal(foundContest.official_rules.end_date, adminTimezone) : '' // new field
         });
+        
+        // Show advanced options if any advanced fields have non-default values
+        const hasAdvancedData = (foundContest as any).contest_type || 
+                               ((foundContest as any).entry_method || (foundContest as any).entry_type) !== 'sms' ||
+                               (foundContest as any).winner_selection_method !== 'random' ||
+                               (foundContest as any).consolation_offer || (foundContest as any).consolation_prize ||
+                               (foundContest as any).max_entries_per_person || (foundContest as any).entry_limit_per_person ||
+                               (foundContest as any).total_entry_limit ||
+                               (foundContest as any).geographic_restrictions || (foundContest as any).geographic_restriction ||
+                               (foundContest as any).promotion_channels?.length > 0 ||
+                               (foundContest as any).contest_tags?.length > 0 || (foundContest as any).tags?.length > 0 ||
+                               (foundContest as any).sms_templates ||
+                               (foundContest as any).official_rules?.start_date ||
+                               (foundContest as any).official_rules?.end_date;
+        
+        if (hasAdvancedData) {
+          setShowAdvancedOptions(true);
+        }
 
       } catch (err) {
         console.error('Error fetching contest:', err);
@@ -142,26 +239,26 @@ const EditContest: React.FC = () => {
     fetchContest();
   }, [contest_id, apiBaseUrl, navigate]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
     
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({
-        ...prev,
-        [name]: checked
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-
     // Clear error when user starts typing
     if (error) {
       setError(null);
     }
+  };
+
+  const handlePromotionChannelChange = (channel: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      promotion_channels: checked 
+        ? [...prev.promotion_channels, channel]
+        : prev.promotion_channels.filter(c => c !== channel)
+    }));
   };
 
   const validateForm = (): string | null => {
@@ -219,21 +316,48 @@ const EditContest: React.FC = () => {
       console.log('Converted end_time (UTC):', endTime);
       console.log('=== END DEBUG ===');
       
+      // Prepare official rules dates (use contest dates if not specified)
+      const officialStartDate = formData.official_start_date ? 
+        datetimeLocalToUTC(formData.official_start_date, adminTimezone) : startTime;
+      const officialEndDate = formData.official_end_date ? 
+        datetimeLocalToUTC(formData.official_end_date, adminTimezone) : endTime;
+
       const payload = {
+        // Basic Information (8 required fields)
         name: formData.name.trim(),
-        description: formData.description.trim(),
-        location: formData.location.trim(),
+        description: formData.description.trim() || undefined,
+        location: formData.location.trim() || undefined,
+        prize_description: formData.prize_description.trim() || undefined,
         start_time: startTime,
         end_time: endTime,
-        prize_description: formData.prize_description.trim(),
-        active: formData.active,
+        
+        // Advanced Options (10 fields)
+        contest_type: formData.contest_type,
+        entry_method: formData.entry_method, // renamed from entry_type
+        winner_selection_method: formData.winner_selection_method,
+        minimum_age: parseInt(formData.minimum_age) || 18,
+        ...(formData.max_entries_per_person && { max_entries_per_person: parseInt(formData.max_entries_per_person) }),
+        ...(formData.total_entry_limit && { total_entry_limit: parseInt(formData.total_entry_limit) }),
+        ...(formData.consolation_offer.trim() && { consolation_offer: formData.consolation_offer.trim() }),
+        ...(formData.geographic_restrictions.trim() && { geographic_restrictions: formData.geographic_restrictions.trim() }),
+        ...(formData.contest_tags.trim() && { contest_tags: formData.contest_tags.split(',').map((tag: string) => tag.trim()).filter(tag => tag) }),
+        ...(formData.promotion_channels.length > 0 && { promotion_channels: formData.promotion_channels }),
+        
+        // SMS Templates (3 fields) - new structure
+        sms_templates: {
+          entry_confirmation: formData.entry_confirmation_sms.trim() || undefined,
+          winner_notification: formData.winner_notification_sms.trim() || undefined,
+          non_winner: formData.non_winner_sms.trim() || undefined
+        },
+        
+        // Official Rules (4 required fields)
         official_rules: {
           eligibility_text: formData.eligibility_text.trim(),
-          sponsor_name: "Contest Organizer",
-          start_date: startTime,
-          end_date: endTime,
+          sponsor_name: formData.sponsor_name.trim(),
+          start_date: officialStartDate,
+          end_date: officialEndDate,
           prize_value_usd: parseFloat(formData.prize_value),
-          terms_url: "https://example.com/terms"
+          terms_url: formData.terms_url.trim() || undefined
         }
       };
 
@@ -639,21 +763,366 @@ const EditContest: React.FC = () => {
               />
             </div>
 
-            <div className="md:col-span-2">
+
+          </div>
+
+          {/* Advanced Options Toggle */}
+          <div className="border-t border-gray-200 pt-6">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="flex items-center justify-between w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            >
               <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="active"
-                  name="active"
-                  checked={formData.active}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="active" className="ml-2 block text-sm text-gray-900">
-                  Contest is active (can accept entries)
-                </label>
+                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="font-medium text-gray-900">Advanced Options</span>
+                <span className="ml-2 text-sm text-gray-500">(Optional campaign settings)</span>
               </div>
-            </div>
+              <svg
+                className={`w-5 h-5 text-gray-400 transform transition-transform ${
+                  showAdvancedOptions ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Advanced Options Content */}
+            {showAdvancedOptions && (
+              <div className="mt-4 p-6 bg-gray-50 border border-gray-200 rounded-lg space-y-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  <p className="font-medium mb-2">🚀 Advanced Campaign Configuration</p>
+                  <p>Configure additional contest parameters, messaging templates, and marketing settings. These settings are optional and will use smart defaults if left empty.</p>
+                </div>
+
+                {/* Contest Configuration */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="contest_type" className="block text-sm font-medium text-gray-700 mb-2">
+                      Contest Type
+                    </label>
+                    <select
+                      id="contest_type"
+                      name="contest_type"
+                      value={formData.contest_type}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="general">General Contest</option>
+                      <option value="weekly">Weekly Contest</option>
+                      <option value="flash">Flash Contest</option>
+                      <option value="seasonal">Seasonal Contest</option>
+                      <option value="promotion">Promotional Contest</option>
+                      <option value="loyalty">Loyalty Reward</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="entry_method" className="block text-sm font-medium text-gray-700 mb-2">
+                      Entry Method
+                    </label>
+                    <select
+                      id="entry_method"
+                      name="entry_method"
+                      value={formData.entry_method}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="sms">SMS Entry</option>
+                      <option value="email">Email Entry</option>
+                      <option value="social">Social Media</option>
+                      <option value="web">Web Form</option>
+                      <option value="qr_code">QR Code Scan</option>
+                      <option value="in_store">In-Store Entry</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="winner_selection_method" className="block text-sm font-medium text-gray-700 mb-2">
+                      Winner Selection Method
+                    </label>
+                    <select
+                      id="winner_selection_method"
+                      name="winner_selection_method"
+                      value={formData.winner_selection_method}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="random">Random Selection</option>
+                      <option value="first_come_first_serve">First Come, First Serve</option>
+                      <option value="judged">Judged Competition</option>
+                      <option value="most_entries">Most Entries</option>
+                      <option value="manual">Manual Selection</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="minimum_age" className="block text-sm font-medium text-gray-700 mb-2">
+                      Minimum Age
+                    </label>
+                    <input
+                      type="number"
+                      id="minimum_age"
+                      name="minimum_age"
+                      min="13"
+                      max="100"
+                      value={formData.minimum_age}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="18"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Entry Limits */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="max_entries_per_person" className="block text-sm font-medium text-gray-700 mb-2">
+                      Max Entries Per Person
+                    </label>
+                    <input
+                      type="number"
+                      id="max_entries_per_person"
+                      name="max_entries_per_person"
+                      min="1"
+                      value={formData.max_entries_per_person}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Unlimited"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="total_entry_limit" className="block text-sm font-medium text-gray-700 mb-2">
+                      Total Entry Limit
+                    </label>
+                    <input
+                      type="number"
+                      id="total_entry_limit"
+                      name="total_entry_limit"
+                      min="1"
+                      value={formData.total_entry_limit}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Unlimited"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Prizes and Geography */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="consolation_offer" className="block text-sm font-medium text-gray-700 mb-2">
+                      Consolation Prize/Offer
+                    </label>
+                    <input
+                      type="text"
+                      id="consolation_offer"
+                      name="consolation_offer"
+                      value={formData.consolation_offer}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 10% discount code"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="geographic_restrictions" className="block text-sm font-medium text-gray-700 mb-2">
+                      Geographic Restrictions
+                    </label>
+                    <input
+                      type="text"
+                      id="geographic_restrictions"
+                      name="geographic_restrictions"
+                      value={formData.geographic_restrictions}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., US residents only, California only"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Contest Management */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="sponsor_name" className="block text-sm font-medium text-gray-700 mb-2">
+                      Sponsor Name
+                    </label>
+                    <input
+                      type="text"
+                      id="sponsor_name"
+                      name="sponsor_name"
+                      value={formData.sponsor_name}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Your Company Name"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="terms_url" className="block text-sm font-medium text-gray-700 mb-2">
+                      Terms & Conditions URL
+                    </label>
+                    <input
+                      type="url"
+                      id="terms_url"
+                      name="terms_url"
+                      value={formData.terms_url}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="https://your-site.com/terms"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Official Rules Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="official_start_date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Official Start Date (Optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="official_start_date"
+                      name="official_start_date"
+                      value={formData.official_start_date}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty to use contest start date</p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="official_end_date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Official End Date (Optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="official_end_date"
+                      name="official_end_date"
+                      value={formData.official_end_date}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty to use contest end date</p>
+                  </div>
+                </div>
+
+                {/* Contest Tags */}
+                <div>
+                  <label htmlFor="contest_tags" className="block text-sm font-medium text-gray-700 mb-2">
+                    Contest Tags
+                  </label>
+                  <input
+                    type="text"
+                    id="contest_tags"
+                    name="contest_tags"
+                    value={formData.contest_tags}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., holiday, summer, loyalty, flash-sale (comma-separated)"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Separate multiple tags with commas</p>
+                </div>
+
+                {/* Promotion Channels */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Promotion Channels
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {['Instagram', 'Facebook', 'Twitter', 'Email Newsletter', 'In-Store Signage', 'Website Banner', 'SMS Blast', 'Radio/TV', 'Print Media'].map((channel) => (
+                      <label key={channel} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.promotion_channels.includes(channel)}
+                          onChange={(e) => handlePromotionChannelChange(channel, e.target.checked)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          disabled={isSubmitting}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{channel}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SMS Templates */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-4">📱 SMS Message Templates</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="entry_confirmation_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Entry Confirmation SMS
+                      </label>
+                      <textarea
+                        id="entry_confirmation_sms"
+                        name="entry_confirmation_sms"
+                        rows={2}
+                        value={formData.entry_confirmation_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent when someone enters the contest"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{contest_name}'} to insert contest name</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="winner_notification_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Winner Notification SMS
+                      </label>
+                      <textarea
+                        id="winner_notification_sms"
+                        name="winner_notification_sms"
+                        rows={2}
+                        value={formData.winner_notification_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent to contest winners"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{prize_description}'} and {'{claim_instructions}'}</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="non_winner_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Non-Winner SMS (Optional)
+                      </label>
+                      <textarea
+                        id="non_winner_sms"
+                        name="non_winner_sms"
+                        rows={2}
+                        value={formData.non_winner_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent to non-winners (consolation offer)"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{consolation_offer}'} to insert consolation prize</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Submit Button */}

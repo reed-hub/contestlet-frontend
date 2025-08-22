@@ -17,9 +17,9 @@ Add these to your backend `.env` file:
 
 ```env
 # Twilio Configuration
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_ACCOUNT_SID=ACyour_account_sid_here
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_VERIFY_SERVICE_SID=VAyour_verify_service_sid_here
 
 # SMS Mode
 USE_MOCK_SMS=true   # Development: false for production

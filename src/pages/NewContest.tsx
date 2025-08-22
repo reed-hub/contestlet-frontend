@@ -1,33 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { logout, isAdminAuthenticated, getAdminToken, clearAllTokens } from '../utils/auth';
 import { datetimeLocalToUTC, createDefaultContestDates, getAdminTimezone, getTimezoneDisplayName, getTimezoneAbbreviation } from '../utils/timezone';
 import Toast from '../components/Toast';
 
 interface ContestFormData {
+  // Basic Information (8 fields)
   name: string;
   description: string;
-  start_date: string;
-  end_date: string;
   location: string;
   prize_description: string;
-  prize_value: string;
-  eligibility_text: string;
+  start_date: string;
+  end_date: string;
+  prize_value: string; // Will map to official_rules.prize_value_usd
+  eligibility_text: string; // Will map to official_rules.eligibility_text
+  
+  // Advanced Options (10 fields)
+  contest_type: string; // 'general', 'sweepstakes', 'instant_win'
+  entry_method: string; // 'sms', 'email', 'web_form' (renamed from entry_type)
+  winner_selection_method: string; // 'random', 'scheduled', 'instant'
+  minimum_age: string; // 13-100, default 18
+  max_entries_per_person: string; // null = unlimited
+  total_entry_limit: string; // null = unlimited
+  consolation_offer: string; // renamed from consolation_prize
+  geographic_restrictions: string; // renamed from geographic_restriction
+  contest_tags: string; // comma-separated, will convert to array
+  promotion_channels: string[]; // array of strings
+  
+  // SMS Templates (3 fields)
+  entry_confirmation_sms: string; // renamed from initial_sms_template
+  winner_notification_sms: string; // renamed from winner_sms_template
+  non_winner_sms: string; // renamed from non_winner_sms_template
+  
+  // Legal Compliance (4 fields)
+  sponsor_name: string; // Will map to official_rules.sponsor_name
+  terms_url: string; // Will map to official_rules.terms_url
+  official_start_date: string; // Will map to official_rules.start_date
+  official_end_date: string; // Will map to official_rules.end_date
 }
 
 const NewContest: React.FC = () => {
+  const location = useLocation();
+  const [isImportMode, setIsImportMode] = useState(false);
   const [formData, setFormData] = useState<ContestFormData>({
+    // Basic Information
     name: '',
     description: '',
-    start_date: '',
-    end_date: '',
     location: 'Online',
     prize_description: '',
+    start_date: '',
+    end_date: '',
     prize_value: '100',
-    eligibility_text: 'Open to all participants. Must be 18 years or older.'
+    eligibility_text: 'Open to all participants. Must be 18 years or older.',
+    
+    // Advanced Options - Default Values
+    contest_type: 'general',
+    entry_method: 'sms', // renamed from entry_type
+    winner_selection_method: 'random',
+    minimum_age: '18', // renamed from age_restriction
+    max_entries_per_person: '', // renamed from entry_limit_per_person
+    total_entry_limit: '',
+    consolation_offer: '', // renamed from consolation_prize
+    geographic_restrictions: '', // renamed from geographic_restriction
+    contest_tags: '',
+    promotion_channels: [],
+    
+    // SMS Templates
+    entry_confirmation_sms: '🎉 You\'re entered! Contest details: {contest_name}. Good luck!', // renamed from initial_sms_template
+    winner_notification_sms: '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}', // renamed from winner_sms_template
+    non_winner_sms: 'Thanks for participating in {contest_name}! {consolation_offer}', // renamed from non_winner_sms_template
+    
+    // Legal Compliance
+    sponsor_name: 'Contestlet',
+    terms_url: 'https://contestlet.com/terms',
+    official_start_date: '', // new field
+    official_end_date: '' // new field
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
@@ -37,6 +88,153 @@ const NewContest: React.FC = () => {
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
+  // Helper function to map campaign data to form data
+  const mapCampaignToFormData = (campaignData: any): ContestFormData => {
+    // Calculate dates based on duration or use overrides
+    let startDate = '';
+    let endDate = '';
+    
+    if (campaignData.start_time) {
+      // Handle various date formats from campaign data
+      const startTime = new Date(campaignData.start_time);
+      startDate = startTime.toISOString().slice(0, 16); // Format for datetime-local
+    } else if (campaignData.duration_days) {
+      const now = new Date();
+      const start = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Start tomorrow
+      const end = new Date(start.getTime() + (campaignData.duration_days * 24 * 60 * 60 * 1000));
+      
+      startDate = start.toISOString().slice(0, 16);
+      endDate = end.toISOString().slice(0, 16);
+    }
+    
+    if (campaignData.end_time && !endDate) {
+      const endTime = new Date(campaignData.end_time);
+      endDate = endTime.toISOString().slice(0, 16);
+    }
+    
+    // Extract promotion channels from various formats
+    let promotionChannels: string[] = [];
+    if (Array.isArray(campaignData.promotion_channels)) {
+      promotionChannels = campaignData.promotion_channels;
+    } else if (typeof campaignData.promotion_channels === 'string') {
+      promotionChannels = campaignData.promotion_channels.split(',').map((c: string) => c.trim());
+    }
+    
+    // Extract messaging templates with comprehensive fallbacks
+    const messaging = campaignData.messaging || {};
+    
+    // Handle prize value extraction from various sources
+    let prizeValue = '100'; // Default
+    if (campaignData.prize_value) {
+      prizeValue = campaignData.prize_value.toString();
+    } else if (campaignData.official_rules?.prize_value_usd) {
+      prizeValue = campaignData.official_rules.prize_value_usd.toString();
+    } else if (campaignData.reward_logic?.prize_value) {
+      prizeValue = campaignData.reward_logic.prize_value.toString();
+    }
+    
+    // Handle eligibility text from multiple sources
+    let eligibilityText = 'Open to all participants. Must be 18 years or older.';
+    if (campaignData.eligibility_text) {
+      eligibilityText = campaignData.eligibility_text;
+    } else if (campaignData.official_rules?.eligibility_text) {
+      eligibilityText = campaignData.official_rules.eligibility_text;
+    } else if (Array.isArray(campaignData.requirements)) {
+      eligibilityText = campaignData.requirements.join('. ');
+    } else if (Array.isArray(campaignData.rules)) {
+      eligibilityText = campaignData.rules.join('. ');
+    }
+    
+    // Handle winner selection method mapping
+    let winnerSelectionMethod = 'random';
+    if (campaignData.winner_selection_method) {
+      winnerSelectionMethod = campaignData.winner_selection_method;
+    } else if (campaignData.reward_logic?.type) {
+      const type = campaignData.reward_logic.type;
+      if (type === 'first_come_first_serve' || type === 'fcfs') {
+        winnerSelectionMethod = 'first_come_first_serve';
+      } else if (type === 'judged' || type === 'manual') {
+        winnerSelectionMethod = 'judged';
+      } else if (type === 'most_entries') {
+        winnerSelectionMethod = 'most_entries';
+      }
+    }
+    
+    // Handle contest tags from various formats
+    let contestTags = '';
+    if (Array.isArray(campaignData.tags)) {
+      contestTags = campaignData.tags.join(', ');
+    } else if (Array.isArray(campaignData.categories)) {
+      contestTags = campaignData.categories.join(', ');
+    } else if (typeof campaignData.tags === 'string') {
+      contestTags = campaignData.tags;
+    } else if (typeof campaignData.contest_tags === 'string') {
+      contestTags = campaignData.contest_tags;
+    }
+    
+    return {
+      // Basic Contest Information
+      name: campaignData.name || '',
+      description: campaignData.description || '',
+      start_date: startDate,
+      end_date: endDate,
+      location: campaignData.location || 'Online',
+      prize_description: campaignData.reward_logic?.winner_reward || 
+                        campaignData.reward_logic?.reward || 
+                        campaignData.prize_description || '',
+      prize_value: prizeValue,
+      eligibility_text: eligibilityText,
+      
+      // Advanced Contest Configuration
+      contest_type: campaignData.contest_type || 
+                   campaignData.type || 
+                   (campaignData.day ? 'weekly' : 'general'),
+      entry_method: campaignData.entry_method || campaignData.entry_type || 'sms',
+      winner_selection_method: winnerSelectionMethod,
+      consolation_offer: campaignData.reward_logic?.consolation_offer || 
+                        campaignData.consolation_prize || '',
+      max_entries_per_person: (campaignData.entry_limit_per_person || 
+                              campaignData.max_entries_per_person || '')?.toString() || '',
+      total_entry_limit: (campaignData.total_entry_limit || 
+                         campaignData.max_total_entries || 
+                         campaignData.reward_logic?.limit || '')?.toString() || '',
+      minimum_age: (campaignData.age_restriction || 
+                       campaignData.min_age || 
+                       campaignData.official_rules?.min_age || '18').toString(),
+      geographic_restrictions: campaignData.geographic_restriction || 
+                             campaignData.location_restriction || '',
+      
+      // SMS Messaging Templates
+      entry_confirmation_sms: messaging.initial_sms || 
+                           messaging.entry_sms || 
+                           messaging.welcome_sms || 
+                           '🎉 You\'re entered! Contest details: {contest_name}. Good luck!',
+      winner_notification_sms: messaging.winner_sms || 
+                          messaging.win_sms || 
+                          '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}',
+      non_winner_sms: messaging.non_winner_sms || 
+                              messaging.lose_sms || 
+                              messaging.consolation_sms || 
+                              'Thanks for participating in {contest_name}! {consolation_offer}',
+      
+      // Marketing and Promotion
+      promotion_channels: promotionChannels,
+      sponsor_name: campaignData.sponsor_name || 
+                   campaignData.official_rules?.sponsor_name || 
+                   'Contestlet',
+      terms_url: campaignData.terms_url || 
+                campaignData.official_rules?.terms_url || 
+                'https://contestlet.com/terms',
+      contest_tags: contestTags,
+      
+      // Official Rules Dates (use contest dates if not specified)
+      official_start_date: campaignData.official_rules?.start_date || 
+                          campaignData.start_date || '',
+      official_end_date: campaignData.official_rules?.end_date || 
+                        campaignData.end_date || ''
+    };
+  };
+
   // Check authentication on mount
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -44,6 +242,34 @@ const NewContest: React.FC = () => {
       return;
     }
   }, [navigate]);
+
+  // Parse imported campaign data from URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const importData = urlParams.get('import');
+    
+    if (importData) {
+      try {
+        const campaignData = JSON.parse(decodeURIComponent(importData));
+        setIsImportMode(true);
+        setShowAdvancedOptions(true); // Show advanced options for imported campaigns
+        
+        // Map campaign data to form fields
+        const mappedData = mapCampaignToFormData(campaignData);
+        setFormData(mappedData);
+        
+        // Show success message about import
+        setToast({
+          type: 'info',
+          message: `Campaign "${campaignData.name}" imported! Review and modify as needed before creating.`,
+          isVisible: true,
+        });
+      } catch (error) {
+        console.error('Failed to parse imported campaign:', error);
+        setError('Failed to load imported campaign data. Please try again.');
+      }
+    }
+  }, [location.search]);
 
   // Set default dates on component mount using admin's timezone
   useEffect(() => {
@@ -57,7 +283,7 @@ const NewContest: React.FC = () => {
     }
   }, [formData.start_date, formData.end_date]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -68,6 +294,15 @@ const NewContest: React.FC = () => {
     if (error) {
       setError(null);
     }
+  };
+
+  const handlePromotionChannelChange = (channel: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      promotion_channels: checked 
+        ? [...prev.promotion_channels, channel]
+        : prev.promotion_channels.filter(c => c !== channel)
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,21 +375,48 @@ const NewContest: React.FC = () => {
       const startTimeUTC = datetimeLocalToUTC(formData.start_date, adminTimezone);
       const endTimeUTC = datetimeLocalToUTC(formData.end_date, adminTimezone);
       
+      // Prepare official rules dates (use contest dates if not specified)
+      const officialStartDate = formData.official_start_date ? 
+        datetimeLocalToUTC(formData.official_start_date, adminTimezone) : startTimeUTC;
+      const officialEndDate = formData.official_end_date ? 
+        datetimeLocalToUTC(formData.official_end_date, adminTimezone) : endTimeUTC;
+
       const apiPayload = {
+        // Basic Information (8 required fields)
         name: formData.name.trim(),
-        description: formData.description.trim(),
+        description: formData.description.trim() || undefined,
+        location: formData.location.trim() || undefined,
+        prize_description: formData.prize_description.trim() || undefined,
         start_time: startTimeUTC,
         end_time: endTimeUTC,
-        location: formData.location.trim() || 'Online',
-        active: true,
-        prize_description: formData.prize_description.trim(),
+        
+        // Advanced Options (10 fields)
+        contest_type: formData.contest_type,
+        entry_method: formData.entry_method, // renamed from entry_type
+        winner_selection_method: formData.winner_selection_method,
+        minimum_age: parseInt(formData.minimum_age) || 18,
+        ...(formData.max_entries_per_person && { max_entries_per_person: parseInt(formData.max_entries_per_person) }),
+        ...(formData.total_entry_limit && { total_entry_limit: parseInt(formData.total_entry_limit) }),
+        ...(formData.consolation_offer.trim() && { consolation_offer: formData.consolation_offer.trim() }),
+        ...(formData.geographic_restrictions.trim() && { geographic_restrictions: formData.geographic_restrictions.trim() }),
+        ...(formData.contest_tags.trim() && { contest_tags: formData.contest_tags.split(',').map((tag: string) => tag.trim()).filter(tag => tag) }),
+        ...(formData.promotion_channels.length > 0 && { promotion_channels: formData.promotion_channels }),
+        
+        // SMS Templates (3 fields) - new structure
+        sms_templates: {
+          entry_confirmation: formData.entry_confirmation_sms.trim() || undefined,
+          winner_notification: formData.winner_notification_sms.trim() || undefined,
+          non_winner: formData.non_winner_sms.trim() || undefined
+        },
+        
+        // Official Rules (4 required fields)
         official_rules: {
           eligibility_text: formData.eligibility_text.trim(),
-          sponsor_name: 'Contestlet',
-          start_date: startTimeUTC,
-          end_date: endTimeUTC,
+          sponsor_name: formData.sponsor_name.trim(),
+          start_date: officialStartDate,
+          end_date: officialEndDate,
           prize_value_usd: parseFloat(formData.prize_value),
-          terms_url: 'https://contestlet.com/terms'
+          terms_url: formData.terms_url.trim() || undefined
         }
       };
 
@@ -213,7 +475,9 @@ const NewContest: React.FC = () => {
       // Show success toast
       setToast({
         type: 'success',
-        message: `Contest "${formData.name}" created successfully! Redirecting...`,
+        message: isImportMode 
+          ? `Contest "${formData.name}" created successfully from imported campaign! Redirecting...`
+          : `Contest "${formData.name}" created successfully! Redirecting...`,
         isVisible: true,
       });
 
@@ -226,7 +490,25 @@ const NewContest: React.FC = () => {
         location: 'Online',
         prize_description: '',
         prize_value: '100',
-        eligibility_text: 'Open to all participants. Must be 18 years or older.'
+        eligibility_text: 'Open to all participants. Must be 18 years or older.',
+        // Advanced Options - Reset to defaults
+        contest_type: 'general',
+        entry_method: 'sms',
+        winner_selection_method: 'random',
+        consolation_offer: '',
+        max_entries_per_person: '',
+        total_entry_limit: '',
+        minimum_age: '18',
+        geographic_restrictions: '',
+        entry_confirmation_sms: '🎉 You\'re entered! Contest details: {contest_name}. Good luck!',
+        winner_notification_sms: '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}',
+        non_winner_sms: 'Thanks for participating in {contest_name}! {consolation_offer}',
+        promotion_channels: [],
+        sponsor_name: 'Contestlet',
+        terms_url: 'https://contestlet.com/terms',
+        contest_tags: '',
+        official_start_date: '',
+        official_end_date: ''
       });
 
       // Redirect after showing success message
@@ -254,10 +536,32 @@ const NewContest: React.FC = () => {
       location: 'Online',
       prize_description: '',
       prize_value: '100',
-      eligibility_text: 'Open to all participants. Must be 18 years or older.'
+      eligibility_text: 'Open to all participants. Must be 18 years or older.',
+      // Advanced Options - Reset to defaults
+      contest_type: 'general',
+      entry_method: 'sms',
+      winner_selection_method: 'random',
+      consolation_offer: '',
+      max_entries_per_person: '',
+      total_entry_limit: '',
+      minimum_age: '18',
+      geographic_restrictions: '',
+      entry_confirmation_sms: '🎉 You\'re entered! Contest details: {contest_name}. Good luck!',
+      winner_notification_sms: '🏆 Congratulations! You won: {prize_description}. Instructions: {claim_instructions}',
+      non_winner_sms: 'Thanks for participating in {contest_name}! {consolation_offer}',
+      promotion_channels: [],
+      sponsor_name: 'Contestlet',
+      terms_url: 'https://contestlet.com/terms',
+      contest_tags: '',
+      official_start_date: '',
+      official_end_date: ''
     });
     setError(null);
     setToast({ type: 'info', message: '', isVisible: false });
+    setShowAdvancedOptions(false);
+    setIsImportMode(false);
+    // Clear URL parameters
+    window.history.replaceState({}, '', '/admin/contests/new');
   };
 
   return (
@@ -273,8 +577,24 @@ const NewContest: React.FC = () => {
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Create New Contest</h1>
-            <p className="text-gray-600 mt-1">Fill in the details to create a new contest</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isImportMode ? (
+                <>
+                  📥 Review Imported Campaign
+                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    Import Mode
+                  </span>
+                </>
+              ) : (
+                'Create New Contest'
+              )}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {isImportMode 
+                ? 'Review and modify the imported campaign data below, then create the contest'
+                : 'Fill in the details to create a new contest'
+              }
+            </p>
             <p className="text-sm text-blue-600 mt-1">
               🕐 All times in <strong>{getTimezoneDisplayName(getAdminTimezone())}</strong> - displayed in your preferred timezone, stored as UTC
               <Link to="/admin/profile" className="ml-2 underline hover:text-blue-800">
@@ -466,6 +786,365 @@ const NewContest: React.FC = () => {
             </div>
           </div>
 
+          {/* Advanced Options Toggle */}
+          <div className="border-t border-gray-200 pt-6">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+              className="flex items-center justify-between w-full p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            >
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="font-medium text-gray-900">Advanced Options</span>
+                <span className="ml-2 text-sm text-gray-500">(Optional campaign settings)</span>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-400 transform transition-transform ${
+                  showAdvancedOptions ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Advanced Options Content */}
+            {showAdvancedOptions && (
+              <div className="mt-4 p-6 bg-gray-50 border border-gray-200 rounded-lg space-y-6">
+                <div className="text-sm text-gray-600 mb-4">
+                  <p className="font-medium mb-2">🚀 Advanced Campaign Configuration</p>
+                  <p>Configure additional contest parameters, messaging templates, and marketing settings. These settings are optional and will use smart defaults if left empty.</p>
+                </div>
+
+                {/* Contest Configuration */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="contest_type" className="block text-sm font-medium text-gray-700 mb-2">
+                      Contest Type
+                    </label>
+                    <select
+                      id="contest_type"
+                      name="contest_type"
+                      value={formData.contest_type}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="general">General Contest</option>
+                      <option value="weekly">Weekly Contest</option>
+                      <option value="flash">Flash Contest</option>
+                      <option value="seasonal">Seasonal Contest</option>
+                      <option value="promotion">Promotional Contest</option>
+                      <option value="loyalty">Loyalty Reward</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="entry_method" className="block text-sm font-medium text-gray-700 mb-2">
+                      Entry Method
+                    </label>
+                    <select
+                      id="entry_method"
+                      name="entry_method"
+                      value={formData.entry_method}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="sms">SMS Entry</option>
+                      <option value="email">Email Entry</option>
+                      <option value="social">Social Media</option>
+                      <option value="web">Web Form</option>
+                      <option value="qr_code">QR Code Scan</option>
+                      <option value="in_store">In-Store Entry</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="winner_selection_method" className="block text-sm font-medium text-gray-700 mb-2">
+                      Winner Selection Method
+                    </label>
+                    <select
+                      id="winner_selection_method"
+                      name="winner_selection_method"
+                      value={formData.winner_selection_method}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="random">Random Selection</option>
+                      <option value="first_come_first_serve">First Come, First Serve</option>
+                      <option value="judged">Judged Competition</option>
+                      <option value="most_entries">Most Entries</option>
+                      <option value="manual">Manual Selection</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="minimum_age" className="block text-sm font-medium text-gray-700 mb-2">
+                      Minimum Age
+                    </label>
+                    <input
+                      type="number"
+                      id="minimum_age"
+                      name="minimum_age"
+                      min="13"
+                      max="100"
+                      value={formData.minimum_age}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="18"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Entry Limits */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="max_entries_per_person" className="block text-sm font-medium text-gray-700 mb-2">
+                      Max Entries Per Person
+                    </label>
+                    <input
+                      type="number"
+                      id="max_entries_per_person"
+                      name="max_entries_per_person"
+                      min="1"
+                      value={formData.max_entries_per_person}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Unlimited"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="total_entry_limit" className="block text-sm font-medium text-gray-700 mb-2">
+                      Total Entry Limit
+                    </label>
+                    <input
+                      type="number"
+                      id="total_entry_limit"
+                      name="total_entry_limit"
+                      min="1"
+                      value={formData.total_entry_limit}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Unlimited"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Prizes and Geography */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="consolation_offer" className="block text-sm font-medium text-gray-700 mb-2">
+                      Consolation Prize/Offer
+                    </label>
+                    <input
+                      type="text"
+                      id="consolation_offer"
+                      name="consolation_offer"
+                      value={formData.consolation_offer}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., 10% discount code"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="geographic_restrictions" className="block text-sm font-medium text-gray-700 mb-2">
+                      Geographic Restrictions
+                    </label>
+                    <input
+                      type="text"
+                      id="geographic_restrictions"
+                      name="geographic_restrictions"
+                      value={formData.geographic_restrictions}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="e.g., US residents only, California only"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Contest Management */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="sponsor_name" className="block text-sm font-medium text-gray-700 mb-2">
+                      Sponsor Name
+                    </label>
+                    <input
+                      type="text"
+                      id="sponsor_name"
+                      name="sponsor_name"
+                      value={formData.sponsor_name}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Your Company Name"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="terms_url" className="block text-sm font-medium text-gray-700 mb-2">
+                      Terms & Conditions URL
+                    </label>
+                    <input
+                      type="url"
+                      id="terms_url"
+                      name="terms_url"
+                      value={formData.terms_url}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="https://your-site.com/terms"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+
+                {/* Official Rules Dates */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="official_start_date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Official Start Date (Optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="official_start_date"
+                      name="official_start_date"
+                      value={formData.official_start_date}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty to use contest start date</p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="official_end_date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Official End Date (Optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      id="official_end_date"
+                      name="official_end_date"
+                      value={formData.official_end_date}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty to use contest end date</p>
+                  </div>
+                </div>
+
+                {/* Contest Tags */}
+                <div>
+                  <label htmlFor="contest_tags" className="block text-sm font-medium text-gray-700 mb-2">
+                    Contest Tags
+                  </label>
+                  <input
+                    type="text"
+                    id="contest_tags"
+                    name="contest_tags"
+                    value={formData.contest_tags}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., holiday, summer, loyalty, flash-sale (comma-separated)"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Separate multiple tags with commas</p>
+                </div>
+
+                {/* Promotion Channels */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Promotion Channels
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {['Instagram', 'Facebook', 'Twitter', 'Email Newsletter', 'In-Store Signage', 'Website Banner', 'SMS Blast', 'Radio/TV', 'Print Media'].map((channel) => (
+                      <label key={channel} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.promotion_channels.includes(channel)}
+                          onChange={(e) => handlePromotionChannelChange(channel, e.target.checked)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          disabled={isSubmitting}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">{channel}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SMS Templates */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-4">📱 SMS Message Templates</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="entry_confirmation_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Entry Confirmation SMS
+                      </label>
+                      <textarea
+                        id="entry_confirmation_sms"
+                        name="entry_confirmation_sms"
+                        rows={2}
+                        value={formData.entry_confirmation_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent when someone enters the contest"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{contest_name}'} to insert contest name</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="winner_notification_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Winner Notification SMS
+                      </label>
+                      <textarea
+                        id="winner_notification_sms"
+                        name="winner_notification_sms"
+                        rows={2}
+                        value={formData.winner_notification_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent to contest winners"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{prize_description}'} and {'{claim_instructions}'}</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="non_winner_sms" className="block text-sm font-medium text-gray-700 mb-2">
+                        Non-Winner SMS (Optional)
+                      </label>
+                      <textarea
+                        id="non_winner_sms"
+                        name="non_winner_sms"
+                        rows={2}
+                        value={formData.non_winner_sms}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Message sent to non-winners (consolation offer)"
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Use {'{consolation_offer}'} to insert consolation prize</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Submit Buttons */}
           <div className="flex flex-wrap gap-3 pt-4">
             <button
@@ -482,7 +1161,7 @@ const NewContest: React.FC = () => {
                   Creating Contest...
                 </div>
               ) : (
-                '🎯 Create Contest'
+                isImportMode ? '📥 Create Contest from Import' : '🎯 Create Contest'
               )}
             </button>
             <button
