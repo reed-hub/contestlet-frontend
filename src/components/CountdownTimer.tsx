@@ -29,7 +29,6 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
     seconds: 0,
     isExpired: false
   });
-
   const calculateTimeLeft = useCallback((): TimeLeft => {
     const difference = parseBackendUtcDate(targetDate).getTime() - new Date().getTime();
     
@@ -56,7 +55,7 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
     const timer = setInterval(() => {
       const newTimeLeft = calculateTimeLeft();
       setTimeLeft(prevTimeLeft => {
-        // If timer just expired (was not expired before, but is now)
+        // Only call onExpire when timer transitions from active to expired (not already expired)
         if (!prevTimeLeft.isExpired && newTimeLeft.isExpired && onExpire) {
           // Call onExpire callback after a short delay to ensure state updates
           setTimeout(() => onExpire(), 100);
@@ -65,14 +64,9 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
       });
     }, 1000);
 
-    // Initial calculation
+    // Initial calculation - don't call onExpire for already expired timers
     const initialTimeLeft = calculateTimeLeft();
     setTimeLeft(initialTimeLeft);
-    
-    // If already expired on mount, call onExpire
-    if (initialTimeLeft.isExpired && onExpire) {
-      setTimeout(() => onExpire(), 100);
-    }
 
     return () => clearInterval(timer);
   }, [targetDate, calculateTimeLeft, onExpire]);
