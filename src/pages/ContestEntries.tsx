@@ -625,7 +625,7 @@ const ContestEntries: React.FC = () => {
                       {contest.winner_phone && (
                         <div>
                           <span className="text-sm font-medium text-gray-600">Winner Phone:</span>
-                          <p className="text-sm text-gray-900 mt-1">{contest.winner_phone}</p>
+                          <p className="text-sm text-gray-900 mt-1">{formatPhoneNumber(contest.winner_phone)}</p>
                         </div>
                       )}
                       {contest.winner_selected_at && (
@@ -734,7 +734,7 @@ const ContestEntries: React.FC = () => {
                   )}
                   {contest?.winner_phone && (
                     <div>
-                      <strong>Winner Phone:</strong> {contest.winner_phone}
+                      <strong>Winner Phone:</strong> {formatPhoneNumber(contest.winner_phone)}
                     </div>
                   )}
                 </div>
