@@ -188,8 +188,11 @@ const NewContest: React.FC = () => {
       // Advanced Contest Configuration
       contest_type: campaignData.contest_type || 
                    campaignData.type || 
-                   (campaignData.day ? 'weekly' : 'general'),
-      entry_method: campaignData.entry_method || campaignData.entry_type || 'sms',
+                   'general', // Always default to 'general' (valid enum)
+      entry_method: campaignData.entry_method || 
+                   (campaignData.entry_type === 'SMS opt-in' ? 'sms' : 
+                    campaignData.entry_type === 'email' ? 'email' : 
+                    campaignData.entry_type === 'web form' ? 'web_form' : 'sms'),
       winner_selection_method: winnerSelectionMethod,
       consolation_offer: campaignData.reward_logic?.consolation_offer || 
                         campaignData.consolation_prize || '',
