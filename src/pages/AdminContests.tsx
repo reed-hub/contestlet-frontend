@@ -560,6 +560,11 @@ const AdminContests: React.FC = () => {
                         return "Ends In";
                       })()}
                       className="text-xs sm:text-sm"
+                      onExpire={() => {
+                        // Refresh contest data when timer expires to get updated status
+                        console.log(`Contest ${contest.id} timer expired, refreshing data...`);
+                        fetchContests();
+                      }}
                     />
                   </div>
                   

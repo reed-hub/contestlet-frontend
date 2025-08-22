@@ -5,6 +5,7 @@ interface CountdownTimerProps {
   targetDate: string;
   label?: string;
   className?: string;
+  onExpire?: () => void; // Callback when timer reaches zero
 }
 
 interface TimeLeft {
@@ -18,7 +19,8 @@ interface TimeLeft {
 const CountdownTimer: React.FC<CountdownTimerProps> = ({ 
   targetDate, 
   label = "Time Remaining",
-  className = ""
+  className = "",
+  onExpire
 }) => {
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
@@ -52,14 +54,28 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
+      const newTimeLeft = calculateTimeLeft();
+      setTimeLeft(prevTimeLeft => {
+        // If timer just expired (was not expired before, but is now)
+        if (!prevTimeLeft.isExpired && newTimeLeft.isExpired && onExpire) {
+          // Call onExpire callback after a short delay to ensure state updates
+          setTimeout(() => onExpire(), 100);
+        }
+        return newTimeLeft;
+      });
     }, 1000);
 
     // Initial calculation
-    setTimeLeft(calculateTimeLeft());
+    const initialTimeLeft = calculateTimeLeft();
+    setTimeLeft(initialTimeLeft);
+    
+    // If already expired on mount, call onExpire
+    if (initialTimeLeft.isExpired && onExpire) {
+      setTimeout(() => onExpire(), 100);
+    }
 
     return () => clearInterval(timer);
-  }, [targetDate, calculateTimeLeft]);
+  }, [targetDate, calculateTimeLeft, onExpire]);
 
   const formatNumber = (num: number): string => {
     return num.toString().padStart(2, '0');
