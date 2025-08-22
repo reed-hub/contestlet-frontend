@@ -8,6 +8,8 @@ Welcome to the Contestlet Frontend documentation! This directory contains all th
 Essential setup and configuration guides:
 - **[Twilio Setup](./setup/TWILIO_SETUP.md)** - SMS integration configuration
 - **[Staging Deployment Guide](./setup/STAGING_DEPLOYMENT_GUIDE.md)** - Complete staging environment setup
+- **[Local Staging Setup](./setup/LOCAL_STAGING_SETUP.md)** - Local development environment setup
+- **[Environment Workflow](./setup/ENVIRONMENT_WORKFLOW.md)** - Complete environment workflow guide
 
 ### 🚀 [Deployment](./deployment/)
 Deployment and environment configuration:
@@ -15,6 +17,10 @@ Deployment and environment configuration:
 - **[Automatic Promotion Guide](./deployment/AUTOMATIC_PROMOTION_GUIDE.md)** - Production deployment promotion
 - **[Deployment Size Fix](./deployment/DEPLOYMENT_SIZE_FIX_SUMMARY.md)** - Vercel size limit solutions
 - **[Production Domain Update](./deployment/PRODUCTION_DOMAIN_UPDATE.md)** - Custom domain configuration
+- **[Vercel Staging Setup](./deployment/VERCEL_STAGING_SETUP.md)** - Vercel staging environment setup
+- **[Vercel Dashboard Setup](./deployment/VERCEL_DASHBOARD_SETUP.md)** - Vercel dashboard configuration
+- **[Vercel Environment Fix](./deployment/VERCEL_ENVIRONMENT_FIX.md)** - Vercel environment configuration fixes
+- **[Frontend Environment Alignment](./deployment/FRONTEND_ENVIRONMENT_ALIGNMENT.md)** - Environment alignment with backend
 
 ### 🔌 [API](./api/)
 API integration and frontend development:
@@ -32,13 +38,22 @@ Common issues and solutions:
 - **[Contest Entry Bug Report](./troubleshooting/CONTEST_ENTRY_BUG_REPORT.md)** - Contest entry issues
 - **[Backend Issue Report](./troubleshooting/BACKEND_ISSUE_REPORT.md)** - Backend connectivity problems
 - **[Debug Timezone Issue](./troubleshooting/DEBUG_TIMEZONE_ISSUE.md)** - Timezone conversion debugging
+- **[Backend CORS Fix Request](./troubleshooting/BACKEND_CORS_FIX_REQUEST.md)** - CORS configuration fixes
+- **[Backend CORS Local Fix Request](./troubleshooting/BACKEND_CORS_LOCAL_FIX_REQUEST.md)** - Local development CORS fixes
+- **[Local CORS Issue Report](./troubleshooting/LOCAL_CORS_ISSUE_REPORT.md)** - Local CORS troubleshooting
+- **[Winner Selection 500 Error](./troubleshooting/WINNER_SELECTION_500_ERROR.md)** - Winner selection error investigation
+
+### 🔧 [Development](./development/)
+Development planning and implementation guides:
+- **[Contest Status System Plan](./development/CONTEST_STATUS_SYSTEM_PLAN.md)** - Contest status system refactor plan
+- **[Frontend Status System Update](./development/FRONTEND_STATUS_SYSTEM_UPDATE.md)** - Status system implementation status
 
 ### 📦 [Archive](./archive/)
 Historical documentation and completed features:
+- **[GitHub Access Workaround](./archive/GITHUB_ACCESS_WORKAROUND.md)** - Historical GitHub access solutions
 - Backend deletion feature implementation
 - Timezone architecture documentation
 - UTC migration guides
-- GitHub push protection solutions
 
 ## 🚀 Quick Start
 
