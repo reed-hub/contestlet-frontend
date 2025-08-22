@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { isAdminAuthenticated, getAdminToken } from '../utils/auth';
 import { deleteContest } from '../utils/adminApi';
@@ -111,6 +111,13 @@ const AdminContests: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Memoized callback for timer expiration to prevent infinite loops
+  const handleTimerExpire = useCallback((contestId: number) => {
+    console.log(`Contest ${contestId} timer expired, refreshing data...`);
+    fetchContests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // fetchContests is stable, no need to include in dependencies
 
   // Fetch contests on mount and when authentication changes
   useEffect(() => {
@@ -560,11 +567,7 @@ const AdminContests: React.FC = () => {
                         return "Ends In";
                       })()}
                       className="text-xs sm:text-sm"
-                      onExpire={() => {
-                        // Refresh contest data when timer expires to get updated status
-                        console.log(`Contest ${contest.id} timer expired, refreshing data...`);
-                        fetchContests();
-                      }}
+                      onExpire={() => handleTimerExpire(contest.id)}
                     />
                   </div>
                   

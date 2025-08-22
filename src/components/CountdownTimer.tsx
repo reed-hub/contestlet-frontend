@@ -69,7 +69,8 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
     setTimeLeft(initialTimeLeft);
 
     return () => clearInterval(timer);
-  }, [targetDate, calculateTimeLeft, onExpire]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetDate, calculateTimeLeft]); // Removed onExpire from dependencies to prevent infinite loops
 
   const formatNumber = (num: number): string => {
     return num.toString().padStart(2, '0');
