@@ -72,18 +72,25 @@ const ContestAuth: React.FC = () => {
       }
 
       try {
+        // Try to fetch from the actual API endpoint first
         const response = await fetch(`${apiBaseUrl}/contest/${contest_id}`);
         
         if (response.ok) {
           const contestData: Contest = await response.json();
+          console.log('Fetched contest from API:', contestData);
           setContest(contestData);
+        } else if (response.status === 404) {
+          // Contest not found - use sample data for demo
+          console.log('Contest not found in API, using sample data');
+          setContest(sampleContest);
         } else {
-          // Fall back to sample data if contest not found
+          // API error - fall back to sample data
+          console.log('API error, using sample data:', response.status);
           setContest(sampleContest);
         }
       } catch (err) {
-        // Fall back to sample data on error
-        console.log('Using sample contest data due to:', err);
+        // Network error or API not available - use sample data
+        console.log('Network error or API not available, using sample data:', err);
         setContest(sampleContest);
       }
     };
