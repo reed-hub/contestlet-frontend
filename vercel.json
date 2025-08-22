@@ -13,11 +13,6 @@
   "outputDirectory": "build",
   "installCommand": "npm ci --omit=dev",
   "devCommand": "npm start",
-  "functions": {
-    "app/**": {
-      "maxDuration": 30
-    }
-  },
   "headers": [
     {
       "source": "/manifest.json",
