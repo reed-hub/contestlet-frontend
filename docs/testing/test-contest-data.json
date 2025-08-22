@@ -1,0 +1,35 @@
+{
+  "basic_contest": {
+    "name": "Backend Integration Test Contest",
+    "description": "Testing all 25 fields with backend API",
+    "location": "Online",
+    "prize_description": "$500 Cash Prize + Gift Cards",
+    "prize_value": "500",
+    "eligibility_text": "Open to US residents 18 years or older",
+    "sponsor_name": "Test Company",
+    "terms_url": "https://example.com/terms"
+  },
+  "advanced_contest": {
+    "name": "Advanced Features Test Contest",
+    "description": "Testing all advanced options and SMS templates",
+    "location": "Boulder, CO",
+    "prize_description": "$1000 Grand Prize",
+    "prize_value": "1000",
+    "eligibility_text": "Open to US residents 21 years or older",
+    "contest_type": "sweepstakes",
+    "entry_method": "sms",
+    "winner_selection_method": "random",
+    "minimum_age": "21",
+    "max_entries_per_person": "5",
+    "total_entry_limit": "1000",
+    "consolation_offer": "20% discount on next purchase",
+    "geographic_restrictions": "US residents only",
+    "contest_tags": "summer, sweepstakes, mobile",
+    "promotion_channels": ["instagram", "facebook", "sms"],
+    "entry_confirmation_sms": "🎉 You're entered in {contest_name}! Good luck winning {prize_description}!",
+    "winner_notification_sms": "🏆 WINNER! You won {prize_description} in {contest_name}! Check your email for claim instructions.",
+    "non_winner_sms": "Thanks for playing {contest_name}! Here's your consolation offer: {consolation_offer}",
+    "sponsor_name": "Advanced Test Company",
+    "terms_url": "https://advanced-example.com/terms"
+  }
+}
