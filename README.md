@@ -21,10 +21,21 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 ## 📱 Twilio SMS Integration
 
-This application integrates with **Twilio Verify API** for SMS-based authentication. See [TWILIO_SETUP.md](./TWILIO_SETUP.md) for complete configuration instructions.
+This application integrates with **Twilio Verify API** for SMS-based authentication. See [docs/setup/TWILIO_SETUP.md](./docs/setup/TWILIO_SETUP.md) for complete configuration instructions.
 
 **Development Mode**: Uses mock SMS with OTP code `123456`
 **Production Mode**: Sends real SMS via Twilio Verify API
+
+## 📚 Documentation
+
+Complete documentation is available in the [docs/](./docs/) directory:
+
+- **[Setup Guides](./docs/setup/)** - Twilio configuration, staging deployment
+- **[API Reference](./docs/api/)** - Complete API documentation and SDK
+- **[Deployment](./docs/deployment/)** - Automated deployment and production setup
+- **[Troubleshooting](./docs/troubleshooting/)** - Common issues and solutions
+
+See [docs/README.md](./docs/README.md) for the complete documentation index.
 
 ## Available Scripts
 
@@ -68,3 +79,5 @@ You don’t have to ever use `eject`. The curated feature set is suitable for sm
 You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
 To learn React, check out the [React documentation](https://reactjs.org/).
+# Updated README for auto-deployment test
+# Auto-promotion test Thu Aug 21 09:12:03 MDT 2025

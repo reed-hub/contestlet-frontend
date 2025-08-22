@@ -6,7 +6,7 @@ import Toast from '../components/Toast';
 
 const AdminLogin: React.FC = () => {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [phoneNumber, setPhoneNumber] = useState('18187958204'); // Default admin phone
+  const [phoneNumber, setPhoneNumber] = useState(''); // No default admin phone for security
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -229,7 +229,7 @@ const AdminLogin: React.FC = () => {
                 value={phoneNumber}
                 onChange={handlePhoneChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="(818) 795-8204"
+                placeholder="Enter your phone number"
                 disabled={isLoading || retryAfter > 0}
               />
             </div>

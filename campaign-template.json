@@ -1,59 +1,66 @@
 {
-  "_comment": "Complete Campaign JSON Template - All Required and Optional Fields",
+  "_comment": "Backend-Compatible Campaign JSON Template - All Required and Optional Fields",
   
-  "name": "Your Campaign Name Here",
-  "description": "Detailed description of your campaign and what users can expect",
+  "name": "Margarita Monday Mystery",
+  "description": "Each Monday, one lucky SMS subscriber wins a margarita + taco combo. Others get smaller perks.",
+  "location": "Online",
+  "prize_description": "Free margarita + taco combo",
   
-  "day": "Monday",
-  "duration_days": 7,
-  "entry_type": "SMS opt-in",
+  "contest_type": "general",
+  "entry_method": "sms",
+  "winner_selection_method": "random",
+  "minimum_age": 21,
+  "max_entries_per_person": 1,
+  "total_entry_limit": 100,
+  "consolation_offer": "10% discount on next visit",
+  "geographic_restrictions": "US residents only",
+  "contest_tags": ["monday", "margarita", "weekly"],
+  "promotion_channels": ["instagram", "facebook", "sms"],
   
-  "reward_logic": {
-    "type": "random_winner",
-    "winner_reward": "Primary reward for winner (REQUIRED)",
-    "consolation_offer": "Offer for non-winners (optional)"
+  "sms_templates": {
+    "entry_confirmation": "🍹 You're entered in Margarita Monday! Drawing every Monday at 5pm. Good luck!",
+    "winner_notification": "🎉 YOU WON! Free margarita + taco combo waiting for you! Show this message to claim. Expires in 7 days.",
+    "non_winner": "Thanks for playing Margarita Monday! Here's 10% off your next visit: MONDAY10"
   },
   
-  "messaging": {
-    "initial_sms": "Welcome message when user enters contest",
-    "winner_sms": "Message sent to contest winner with instructions",
-    "non_winner_sms": "Message sent to non-winners with consolation offer"
+  "official_rules": {
+    "eligibility_text": "Open to US residents 21 years or older. Must have valid phone number and opt-in to SMS marketing.",
+    "sponsor_name": "Your Restaurant Name",
+    "prize_value_usd": 25.00,
+    "terms_url": "https://yourrestaurant.com/contest-terms"
   },
   
-  "promotion_channels": [
-    "in-store signage",
-    "Instagram",
-    "Facebook",
-    "SMS reminder",
-    "email newsletter",
-    "website banner"
-  ],
-  
-  "activation_hooks": [
-    "show_sms_for_offer",
-    "winner_announcement_in_IG_story",
-    "send_follow_up_email",
-    "add_to_loyalty_program"
-  ],
-  
-  "rules": [
-    "Must be 18 or older to participate",
-    "One entry per phone number",
-    "Winner will be contacted via SMS",
-    "Prize must be claimed within 7 days"
-  ],
-  
-  "requirements": [
-    "Valid US phone number required",
-    "Must opt-in to SMS marketing",
-    "Must be local resident"
-  ],
-  
-  "metadata": {
-    "campaign_source": "one-sheet-import",
-    "created_by": "admin",
-    "tags": ["weekly", "restaurant", "sms"],
-    "budget_estimate": "$50",
-    "expected_participants": 100
+  "_legacy_fields_for_reference": {
+    "day": "Monday",
+    "duration_days": 7,
+    "entry_type": "SMS opt-in",
+    "reward_logic": {
+      "type": "random_winner",
+      "winner_reward": "Free margarita + taco combo",
+      "consolation_offer": "10% discount on next visit"
+    },
+    "messaging": {
+      "initial_sms": "🍹 You're entered in Margarita Monday! Drawing every Monday at 5pm. Good luck!",
+      "winner_sms": "🎉 YOU WON! Free margarita + taco combo waiting for you! Show this message to claim. Expires in 7 days.",
+      "non_winner_sms": "Thanks for playing Margarita Monday! Here's 10% off your next visit: MONDAY10"
+    },
+    "rules": [
+      "Must be 21 or older to participate",
+      "One entry per phone number",
+      "Winner will be contacted via SMS",
+      "Prize must be claimed within 7 days"
+    ],
+    "requirements": [
+      "Valid US phone number required",
+      "Must opt-in to SMS marketing",
+      "Must be local resident"
+    ],
+    "metadata": {
+      "campaign_source": "one-sheet-import",
+      "created_by": "admin",
+      "tags": ["weekly", "restaurant", "sms"],
+      "budget_estimate": "$25",
+      "expected_participants": 100
+    }
   }
 }
