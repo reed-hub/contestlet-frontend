@@ -3,7 +3,7 @@
 import { getAdminToken } from './auth';
 
 const getApiBaseUrl = () => {
-  return process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+  return process.env.REACT_APP_API_BASE_URL || '';
 };
 
 /**

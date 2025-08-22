@@ -1,0 +1,32 @@
+{
+  "_comment": "FIXED Campaign JSON Template - Backend Integration Compatible",
+  
+  "name": "Summer Margarita Monday Mystery",
+  "description": "Each Monday, one lucky SMS subscriber wins a margarita + taco combo. Others get smaller perks.",
+  "location": "Online",
+  "prize_description": "Free margarita + taco combo",
+  
+  "contest_type": "general",
+  "entry_method": "sms",
+  "winner_selection_method": "random",
+  "minimum_age": 21,
+  "max_entries_per_person": 1,
+  "total_entry_limit": 100,
+  "consolation_offer": "10% discount on next visit",
+  "geographic_restrictions": "US residents only",
+  "contest_tags": ["monday", "margarita", "weekly"],
+  "promotion_channels": ["instagram", "facebook", "sms"],
+  
+  "sms_templates": {
+    "entry_confirmation": "🍹 You're entered in Margarita Monday! Drawing every Monday at 5pm. Good luck!",
+    "winner_notification": "🎉 YOU WON! Free margarita + taco combo waiting for you! Show this message to claim. Expires in 7 days.",
+    "non_winner": "Thanks for playing Margarita Monday! Here's 10% off your next visit: MONDAY10"
+  },
+  
+  "official_rules": {
+    "eligibility_text": "Open to US residents 21 years or older. Must have valid phone number.",
+    "sponsor_name": "Your Restaurant Name",
+    "prize_value_usd": 25,
+    "terms_url": "https://yourrestaurant.com/terms"
+  }
+}
