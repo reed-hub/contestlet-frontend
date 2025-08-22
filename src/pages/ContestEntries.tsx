@@ -318,6 +318,10 @@ const ContestEntries: React.FC = () => {
 
       // Debug logging
       console.log('Selecting winner for contest:', contest_id);
+      console.log('Contest details:', contest);
+      console.log('Current time (local):', new Date().toISOString());
+      console.log('Contest end time:', contest?.end_time);
+      console.log('Contest start time:', contest?.start_time);
 
       const response = await fetch(`${apiBaseUrl}/admin/contests/${contest_id}/select-winner`, {
         method: 'POST',
@@ -359,6 +363,12 @@ const ContestEntries: React.FC = () => {
         }
       } else {
         const errorMsg = result.message || result.detail || `Failed to select winner (${response.status})`;
+        console.error('Winner selection failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          result,
+          errorMsg
+        });
         throw new Error(errorMsg);
       }
     } catch (err) {
@@ -372,6 +382,10 @@ const ContestEntries: React.FC = () => {
         // Trigger a data refresh
         window.location.reload(); // Simple refresh for now
         return;
+      } else if (errorMessage.toLowerCase().includes('offset-naive') || errorMessage.toLowerCase().includes('offset-aware')) {
+        // Handle timezone comparison errors
+        errorMessage = 'Timezone error: Contest times may have inconsistent timezone information. Please check contest start/end times.';
+        console.error('Timezone comparison error detected:', errorMessage);
       } else if (errorMessage.includes('400')) {
         errorMessage = 'Bad Request: Please check if the contest has entries and you have admin permissions';
       } else if (errorMessage.includes('401')) {

@@ -199,6 +199,38 @@ export function getBrowserTimezone(): string {
 }
 
 /**
+ * Ensure a datetime string is properly formatted for timezone-safe comparisons
+ * This fixes the "can't compare offset-naive and offset-aware datetimes" error
+ * @param datetimeString - Any datetime string from API or form
+ * @returns UTC ISO string that can be safely compared
+ */
+export function ensureTimezoneSafe(datetimeString: string): string {
+  if (!datetimeString) return '';
+  
+  try {
+    // If it already has a Z suffix, it's UTC
+    if (datetimeString.endsWith('Z')) {
+      return datetimeString;
+    }
+    
+    // If it has a + or - timezone offset, it's timezone-aware
+    if (datetimeString.includes('+') || datetimeString.includes('-') && datetimeString.length > 19) {
+      return new Date(datetimeString).toISOString();
+    }
+    
+    // If it's just a datetime without timezone info, treat it as UTC
+    // This prevents the "offset-naive vs offset-aware" comparison error
+    const utcString = datetimeString.endsWith('Z') ? datetimeString : datetimeString + 'Z';
+    return new Date(utcString).toISOString();
+    
+  } catch (error) {
+    console.error('Error ensuring timezone safety:', error);
+    // Fallback: return the original string
+    return datetimeString;
+  }
+}
+
+/**
  * Convert a datetime-local input value (in admin timezone) to UTC ISO string for API
  * @param datetimeLocalValue - Value from datetime-local input (YYYY-MM-DDTHH:mm)
  * @param adminTimezone - Admin's preferred timezone
@@ -256,6 +288,7 @@ export function datetimeLocalToUTC(datetimeLocalValue: string, adminTimezone?: s
     
   } catch (error) {
     console.error('Error converting datetime to UTC:', error);
+    // Fallback: treat as UTC to prevent timezone comparison errors
     return new Date(datetimeLocalValue + ':00Z').toISOString();
   }
 }

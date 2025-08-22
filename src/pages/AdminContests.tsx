@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { isAdminAuthenticated, getAdminToken } from '../utils/auth';
 import { deleteContest } from '../utils/adminApi';
-import { formatDateInAdminTimezone, parseBackendUtcDate } from '../utils/timezone';
+import { formatDateInAdminTimezone, parseBackendUtcDate, ensureTimezoneSafe } from '../utils/timezone';
 import CountdownTimer from '../components/CountdownTimer';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ImportCampaignModal from '../components/ImportCampaignModal';
@@ -221,10 +221,10 @@ const AdminContests: React.FC = () => {
           comparison = a.name.localeCompare(b.name);
           break;
         case 'start_time':
-          comparison = new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+          comparison = new Date(ensureTimezoneSafe(a.start_time)).getTime() - new Date(ensureTimezoneSafe(b.start_time)).getTime();
           break;
         case 'end_time':
-          comparison = new Date(a.end_time).getTime() - new Date(b.end_time).getTime();
+          comparison = new Date(ensureTimezoneSafe(a.end_time)).getTime() - new Date(ensureTimezoneSafe(b.end_time)).getTime();
           break;
         case 'entry_count':
           comparison = (a.entry_count || 0) - (b.entry_count || 0);
