@@ -13,23 +13,15 @@ interface Contest {
   name: string;
   description: string;
   location: string;
-  latitude?: number;
-  longitude?: number;
   start_time: string;
   end_time: string;
   prize_description: string;
-  active: boolean; // Keep for backward compatibility
-  status?: 'upcoming' | 'active' | 'ended' | 'complete'; // New server-provided status
-  created_at: string;
+  image_url?: string;
+  sponsor_url?: string; // Sponsor website URL
+  status: string;
   entry_count: number;
-  official_rules?: {
-    eligibility_text: string;
-    sponsor_name: string;
-    start_date: string;
-    end_date: string;
-    prize_value_usd: number;
-    terms_url: string;
-  };
+  created_at: string;
+  updated_at: string;
 }
 
 const AdminContests: React.FC = () => {
@@ -59,6 +51,44 @@ const AdminContests: React.FC = () => {
   const navigate = useNavigate();
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+
+  // Check backend connectivity
+  const checkBackendConnectivity = async () => {
+    console.log('🔌 BACKEND CONNECTIVITY CHECK START');
+    console.log('  - API Base URL:', apiBaseUrl);
+    
+    try {
+      // Try a simple GET request to check connectivity
+      const response = await fetch(`${apiBaseUrl}/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('  - Health check response status:', response.status);
+      console.log('  - Health check response OK:', response.ok);
+      
+      if (response.ok) {
+        console.log('  - ✅ Backend is reachable');
+        return true;
+      } else {
+        console.log('  - ⚠️ Backend responded but with error status');
+        return false;
+      }
+    } catch (error) {
+      console.log('  - ❌ Backend connectivity failed');
+      console.log('  - Error:', error);
+      console.log('  - Possible issues:');
+      console.log('    * Backend server not running');
+      console.log('    * Wrong port number');
+      console.log('    * CORS issues');
+      console.log('    * Network problems');
+      return false;
+    } finally {
+      console.log('🔌 BACKEND CONNECTIVITY CHECK END');
+    }
+  };
 
   // Check authentication on mount
   useEffect(() => {
@@ -138,11 +168,33 @@ const AdminContests: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!contestToDelete) return;
 
+    console.log('🗑️ DELETE CONTEST HANDLER DEBUG START');
+    console.log('  - Contest to delete:', contestToDelete);
+    console.log('  - Contest ID:', contestToDelete.id);
+    console.log('  - Contest name:', contestToDelete.name);
+    console.log('  - Contest status:', contestToDelete.status);
+    console.log('  - Contest entry count:', contestToDelete.entry_count);
+    console.log('  - Current time:', new Date().toISOString());
+    console.log('  - Start time:', contestToDelete.start_time);
+    console.log('  - End time:', contestToDelete.end_time);
+
     setDeleteLoading(true);
     try {
+      // Check backend connectivity first
+      console.log('  - Checking backend connectivity...');
+      const isBackendReachable = await checkBackendConnectivity();
+      
+      if (!isBackendReachable) {
+        throw new Error('Backend server is not reachable. Please check if the backend is running and accessible.');
+      }
+      
+      console.log('  - Backend is reachable, proceeding with delete...');
+      console.log('  - Calling deleteContest API...');
       const result = await deleteContest(contestToDelete.id);
+      console.log('  - API response received:', result);
       
       if (result.success) {
+        console.log('  - ✅ Delete successful, updating local state...');
         // Remove the deleted contest from the local state
         setContests(prev => prev.filter(c => c.id !== contestToDelete.id));
         setDeleteModalOpen(false);
@@ -154,9 +206,10 @@ const AdminContests: React.FC = () => {
           message: `Contest "${contestToDelete.name}" deleted successfully!`,
           isVisible: true,
         });
+        console.log('  - 🎉 Delete completed successfully');
       } else {
+        console.log('  - ❌ Delete failed with message:', result.message);
         // Handle error with detailed toast
-        console.error('Failed to delete contest:', result.message);
         setToast({
           type: 'error',
           message: `Failed to delete "${contestToDelete.name}": ${result.message}`,
@@ -164,7 +217,11 @@ const AdminContests: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('Error during delete:', error);
+      console.log('  - 💥 Exception during delete:', error);
+      console.log('  - Error type:', typeof error);
+      console.log('  - Error message:', error instanceof Error ? error.message : String(error));
+      console.log('  - Full error object:', error);
+      
       setToast({
         type: 'error',
         message: `Error deleting "${contestToDelete.name}": ${error instanceof Error ? error.message : 'An unexpected error occurred'}`,
@@ -172,6 +229,7 @@ const AdminContests: React.FC = () => {
       });
     } finally {
       setDeleteLoading(false);
+      console.log('🗑️ DELETE CONTEST DEBUG END');
     }
   };
 
@@ -531,6 +589,61 @@ const AdminContests: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
             {filteredAndSortedContests.map((contest) => (
               <div key={contest.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+                {/* Contest Image/Video */}
+                {contest.image_url ? (
+                  <div className="relative w-full h-48 bg-gray-100 overflow-hidden group">
+                    {contest.image_url.toLowerCase().endsWith('.mp4') ? (
+                      <video
+                        src={contest.image_url}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        onError={(e) => {
+                          const target = e.target as HTMLVideoElement;
+                          target.style.display = 'none';
+                          target.parentElement!.innerHTML = `
+                            <div class="w-full h-full flex items-center justify-center text-gray-400">
+                              <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          `;
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={contest.image_url}
+                        alt={`${contest.name} contest image`}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement!.innerHTML = `
+                            <div class="w-full h-full flex items-center justify-center text-gray-400">
+                              <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          `;
+                        }}
+                      />
+                    )}
+                    {/* Hover overlay for better text readability */}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300"></div>
+                  </div>
+                ) : (
+                  <div className="w-full h-48 bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center group hover:from-purple-100 hover:to-blue-100 transition-all duration-300">
+                    <div className="text-center text-gray-400 group-hover:text-gray-500">
+                      <svg className="h-16 w-16 mx-auto mb-2 transition-transform duration-300 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="text-sm font-medium">No Image</p>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Card Header */}
                 <div className="p-4 sm:p-6 pb-3 sm:pb-4">
                   <div className="flex justify-between items-start mb-3">
