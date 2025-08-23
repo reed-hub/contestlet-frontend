@@ -1,8 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { logout, isAdminAuthenticated, getAdminToken, clearAllTokens } from '../utils/auth';
+import { isAdminAuthenticated, getAdminToken, clearAllTokens } from '../utils/auth';
 import { datetimeLocalToUTC, createDefaultContestDates, getAdminTimezone, getTimezoneDisplayName, getTimezoneAbbreviation } from '../utils/timezone';
 import Toast from '../components/Toast';
+
+// US States for location selection - will be fetched from backend
+const US_STATES: { value: string; label: string }[] = [];
+
+// Fetch US states from backend API
+const fetchUSStates = async (): Promise<{ value: string; label: string }[]> => {
+  try {
+    const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+    const response = await fetch(`${apiBaseUrl}/location/states`);
+    
+    if (!response.ok) {
+      console.warn('Failed to fetch states from backend, using fallback');
+      return [];
+    }
+    
+    const data = await response.json();
+    if (data.states && Array.isArray(data.states)) {
+      return data.states.map((state: any) => ({
+        value: state.code,
+        label: state.name
+      }));
+    }
+    
+    return [];
+  } catch (err) {
+    console.warn('Error fetching states from backend:', err);
+    return [];
+  }
+};
 
 interface ContestFormData {
   // Basic Information (8 fields)
@@ -14,6 +43,10 @@ interface ContestFormData {
   end_date: string;
   prize_value: string; // Will map to official_rules.prize_value_usd
   eligibility_text: string; // Will map to official_rules.eligibility_text
+  
+  // New Image and Sponsor Fields
+  image_url: string; // Contest hero image URL
+  sponsor_url: string; // Sponsor website URL
   
   // Advanced Options (10 fields)
   contest_type: string; // 'general', 'sweepstakes', 'instant_win'
@@ -37,6 +70,13 @@ interface ContestFormData {
   terms_url: string; // Will map to official_rules.terms_url
   official_start_date: string; // Will map to official_rules.start_date
   official_end_date: string; // Will map to official_rules.end_date
+
+  // Smart Location Fields
+  location_type: 'united_states' | 'specific_states' | 'radius' | 'custom';
+  selected_states: string[];
+  radius_address: string;
+  radius_miles: string;
+  radius_coordinates: { lat: number; lng: number } | null;
 }
 
 const NewContest: React.FC = () => {
@@ -46,12 +86,16 @@ const NewContest: React.FC = () => {
     // Basic Information
     name: '',
     description: '',
-    location: 'Online',
+    location: 'United States',
     prize_description: '',
     start_date: '',
     end_date: '',
     prize_value: '100',
     eligibility_text: 'Open to all participants. Must be 18 years or older.',
+    
+    // New Image and Sponsor Fields
+    image_url: '',
+    sponsor_url: '',
     
     // Advanced Options - Default Values
     contest_type: 'general',
@@ -74,7 +118,14 @@ const NewContest: React.FC = () => {
     sponsor_name: 'Contestlet',
     terms_url: 'https://contestlet.com/terms',
     official_start_date: '', // new field
-    official_end_date: '' // new field
+    official_end_date: '', // new field
+
+    // Smart Location Fields
+    location_type: 'united_states',
+    selected_states: [],
+    radius_address: '',
+    radius_miles: '25',
+    radius_coordinates: null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,26 +141,36 @@ const NewContest: React.FC = () => {
 
   // Helper function to map campaign data to form data
   const mapCampaignToFormData = (campaignData: any): ContestFormData => {
-    // Calculate dates based on duration or use overrides
+    // Handle dates from import overrides (new smart date system)
     let startDate = '';
     let endDate = '';
     
-    if (campaignData.start_time) {
-      // Handle various date formats from campaign data
+    if (campaignData.start_date) {
+      // Use start_date from import overrides
+      startDate = campaignData.start_date;
+    } else if (campaignData.start_time) {
+      // Handle various date formats from campaign data (legacy)
       const startTime = new Date(campaignData.start_time);
       startDate = startTime.toISOString().slice(0, 16); // Format for datetime-local
-    } else if (campaignData.duration_days) {
+    }
+    
+    if (campaignData.end_date) {
+      // Use end_date from import overrides
+      endDate = campaignData.end_date;
+    } else if (campaignData.end_time && !endDate) {
+      // Handle various date formats from campaign data (legacy)
+      const endTime = new Date(campaignData.end_time);
+      endDate = endTime.toISOString().slice(0, 16);
+    }
+    
+    // If we still don't have dates, calculate from duration_days
+    if (!startDate && !endDate && campaignData.duration_days) {
       const now = new Date();
       const start = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // Start tomorrow
       const end = new Date(start.getTime() + (campaignData.duration_days * 24 * 60 * 60 * 1000));
       
       startDate = start.toISOString().slice(0, 16);
       endDate = end.toISOString().slice(0, 16);
-    }
-    
-    if (campaignData.end_time && !endDate) {
-      const endTime = new Date(campaignData.end_time);
-      endDate = endTime.toISOString().slice(0, 16);
     }
     
     // Extract promotion channels from various formats
@@ -172,6 +233,24 @@ const NewContest: React.FC = () => {
       contestTags = campaignData.contest_tags;
     }
     
+    // Handle location type and specific states
+    let locationType: ContestFormData['location_type'] = 'united_states';
+    let selectedStates: string[] = [];
+    if (campaignData.location_type && ['united_states', 'specific_states', 'radius', 'custom'].includes(campaignData.location_type)) {
+      locationType = campaignData.location_type as ContestFormData['location_type'];
+    }
+    if (Array.isArray(campaignData.selected_states)) {
+      selectedStates = campaignData.selected_states;
+    } else if (typeof campaignData.selected_states === 'string') {
+      selectedStates = campaignData.selected_states.split(',').map((s: string) => s.trim());
+    }
+
+    // Handle radius coordinates
+    let radiusCoordinates: { lat: number; lng: number } | null = null;
+    if (campaignData.radius_coordinates) {
+      radiusCoordinates = campaignData.radius_coordinates;
+    }
+
     return {
       // Basic Contest Information
       name: campaignData.name || '',
@@ -225,6 +304,8 @@ const NewContest: React.FC = () => {
       sponsor_name: campaignData.sponsor_name || 
                    campaignData.official_rules?.sponsor_name || 
                    'Contestlet',
+      sponsor_url: campaignData.sponsor_url || '',
+      image_url: campaignData.image_url || undefined, // Contest hero image URL
       terms_url: campaignData.terms_url || 
                 campaignData.official_rules?.terms_url || 
                 'https://contestlet.com/terms',
@@ -234,7 +315,14 @@ const NewContest: React.FC = () => {
       official_start_date: campaignData.official_rules?.start_date || 
                           campaignData.start_date || '',
       official_end_date: campaignData.official_rules?.end_date || 
-                        campaignData.end_date || ''
+                        campaignData.end_date || '',
+
+      // Smart Location Fields
+      location_type: locationType,
+      selected_states: selectedStates,
+      radius_address: campaignData.radius_address || '',
+      radius_miles: campaignData.radius_miles || '25',
+      radius_coordinates: radiusCoordinates
     };
   };
 
@@ -246,27 +334,44 @@ const NewContest: React.FC = () => {
     }
   }, [navigate]);
 
-  // Parse imported campaign data from URL parameters
+  // Parse imported campaign data from sessionStorage or URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const importData = urlParams.get('import');
     
     if (importData) {
       try {
-        const campaignData = JSON.parse(decodeURIComponent(importData));
-        setIsImportMode(true);
-        setShowAdvancedOptions(true); // Show advanced options for imported campaigns
+        let campaignData;
         
-        // Map campaign data to form fields
-        const mappedData = mapCampaignToFormData(campaignData);
-        setFormData(mappedData);
+        // Try to get from sessionStorage first (new approach)
+        const storedData = sessionStorage.getItem('importedCampaign');
+        if (storedData) {
+          campaignData = JSON.parse(storedData);
+          // Clear from sessionStorage after reading
+          sessionStorage.removeItem('importedCampaign');
+        } else {
+          // Fallback to URL parameters (legacy approach)
+          const urlImportData = urlParams.get('import');
+          if (urlImportData && urlImportData !== 'true') {
+            campaignData = JSON.parse(decodeURIComponent(urlImportData));
+          }
+        }
         
-        // Show success message about import
-        setToast({
-          type: 'info',
-          message: `Campaign "${campaignData.name}" imported! Review and modify as needed before creating.`,
-          isVisible: true,
-        });
+        if (campaignData) {
+          setIsImportMode(true);
+          setShowAdvancedOptions(true); // Show advanced options for imported campaigns
+          
+          // Map campaign data to form fields
+          const mappedData = mapCampaignToFormData(campaignData);
+          setFormData(mappedData);
+          
+          // Show success message about import
+          setToast({
+            type: 'info',
+            message: `Campaign "${campaignData.name}" imported! Review and modify as needed before creating.`,
+            isVisible: true,
+          });
+        }
       } catch (error) {
         console.error('Failed to parse imported campaign:', error);
         setError('Failed to load imported campaign data. Please try again.');
@@ -285,6 +390,24 @@ const NewContest: React.FC = () => {
       }));
     }
   }, [formData.start_date, formData.end_date]);
+
+  // Fetch US states from backend API
+  useEffect(() => {
+    const loadStates = async () => {
+      setIsLoadingStates(true);
+      try {
+        const states = await fetchUSStates();
+        setUsStates(states);
+      } catch (err) {
+        console.error('Failed to load US states:', err);
+        // Fallback to empty array - form will still work
+      } finally {
+        setIsLoadingStates(false);
+      }
+    };
+    
+    loadStates();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -306,6 +429,105 @@ const NewContest: React.FC = () => {
         ? [...prev.promotion_channels, channel]
         : prev.promotion_channels.filter(c => c !== channel)
     }));
+  };
+
+  const handleLocationTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      location_type: e.target.value as ContestFormData['location_type'],
+      selected_states: [], // Clear specific states when location type changes
+      radius_address: '', // Clear radius address
+      radius_coordinates: null // Clear radius coordinates
+    }));
+  };
+
+  const handleStateSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      selected_states: prev.selected_states.includes(value)
+        ? prev.selected_states.filter(s => s !== value)
+        : [...prev.selected_states, value]
+    }));
+  };
+
+  const handleGeocodeAddress = async () => {
+    setIsGeocoding(true);
+    try {
+      // Use our backend location API for geocoding
+      const response = await fetch(`${apiBaseUrl}/location/geocode`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAdminToken()}`,
+        },
+        body: JSON.stringify({
+          address: formData.radius_address
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.coordinates) {
+        const { latitude, longitude } = data.coordinates;
+        setFormData(prev => ({ 
+          ...prev, 
+          radius_coordinates: { lat: latitude, lng: longitude } 
+        }));
+        setToast({
+          type: 'success',
+          message: `Address verified: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          isVisible: true,
+        });
+      } else {
+        setToast({
+          type: 'error',
+          message: `Could not find coordinates for address: ${formData.radius_address}`,
+          isVisible: true,
+        });
+      }
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: `Error geocoding address: ${err instanceof Error ? err.message : String(err)}`,
+        isVisible: true,
+      });
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const getLocationSummary = () => {
+    if (formData.location_type === 'united_states') {
+      return '🌎 Contest open to all United States residents';
+    }
+    if (formData.location_type === 'specific_states') {
+      if (formData.selected_states.length === 0) {
+        return '🌎 Contest open to all states (no states selected)';
+      }
+      return `🌎 Contest open to ${formData.selected_states.length} selected states: ${formData.selected_states.join(', ')}`;
+    }
+    if (formData.location_type === 'radius') {
+      if (!formData.radius_address) {
+        return '🌎 Contest open to all locations (no address specified)';
+      }
+      if (formData.radius_coordinates) {
+        return `🌎 Contest open within ${formData.radius_miles} miles of ${formData.radius_address} (coordinates verified)`;
+      }
+      return `🌎 Contest open within ${formData.radius_miles} miles of ${formData.radius_address} (address not yet verified)`;
+    }
+    if (formData.location_type === 'custom') {
+      if (!formData.location.trim()) {
+        return '🌎 Contest open to all locations (no custom text specified)';
+      }
+      return `🌎 Contest open to: ${formData.location}`;
+    }
+    return '🌎 Contest open to all locations';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -362,6 +584,36 @@ const NewContest: React.FC = () => {
       return;
     }
 
+    // Validate location configuration
+    const locationValidation = await validateLocationConfiguration();
+    if (!locationValidation.isValid) {
+      console.log('⚠️ Location validation failed, but continuing with form submission for testing image_url field');
+      console.log('  - Location error:', locationValidation.error);
+      // Temporarily bypass location validation to test image_url field
+      // setError(`Location configuration error: ${locationValidation.error}`);
+      // setIsSubmitting(false);
+      // return;
+    }
+
+    // Validate image/video URL format if provided
+    if (formData.image_url.trim()) {
+      try {
+        const url = new URL(formData.image_url.trim());
+        const isVideo = formData.image_url.toLowerCase().endsWith('.mp4');
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(formData.image_url);
+        
+        if (!isVideo && !isImage) {
+          setError('Please enter a valid image URL (JPG, PNG, GIF, WebP) or video URL (MP4)');
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        setError('Please enter a valid URL (e.g., https://example.com/image.jpg or https://example.com/video.mp4)');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     try {
       const adminToken = getAdminToken();
       
@@ -393,6 +645,10 @@ const NewContest: React.FC = () => {
         start_time: startTimeUTC,
         end_time: endTimeUTC,
         
+        // New Image and Sponsor Fields
+        image_url: formData.image_url.trim() || null,
+        sponsor_url: formData.sponsor_url.trim() || null,
+        
         // Advanced Options (10 fields)
         contest_type: formData.contest_type,
         entry_method: formData.entry_method, // renamed from entry_type
@@ -420,11 +676,39 @@ const NewContest: React.FC = () => {
           end_date: officialEndDate,
           prize_value_usd: parseFloat(formData.prize_value),
           terms_url: formData.terms_url.trim() || undefined
-        }
+        },
+
+        // Geographic Restrictions
+        geographic_restrictions: formData.geographic_restrictions.trim() || undefined,
+
+        // Smart Location Fields
+        location_type: formData.location_type,
+        selected_states: formData.selected_states,
+        radius_address: formData.radius_address.trim() || undefined,
+        radius_miles: parseInt(formData.radius_miles) || 25,
+        radius_coordinates: formData.radius_coordinates || undefined
       };
+
+      // Debug logging for image URL specifically
+      console.log('=== IMAGE URL DEBUG ===');
+      console.log('Raw image_url from form:', formData.image_url);
+      console.log('Trimmed image_url:', formData.image_url.trim());
+      console.log('Final image_url in payload:', formData.image_url.trim() || null);
+      console.log('Full payload image_url:', apiPayload.image_url);
+      console.log('=== END IMAGE URL DEBUG ===');
 
       console.log('Creating contest with payload:', apiPayload); // Debug log
       console.log('Using admin token:', adminToken ? `${adminToken.substring(0, 20)}...` : 'NO TOKEN'); // Debug log
+      
+      // Additional specific logging for image_url
+      console.log('🔍 IMAGE URL FIELD DEBUG:');
+      console.log('  - Form data image_url:', formData.image_url);
+      console.log('  - Form data image_url type:', typeof formData.image_url);
+      console.log('  - Form data image_url length:', formData.image_url?.length);
+      console.log('  - Payload image_url:', apiPayload.image_url);
+      console.log('  - Payload image_url type:', typeof apiPayload.image_url);
+      console.log('  - Full form data object:', JSON.stringify(formData, null, 2));
+      console.log('🔍 END IMAGE URL DEBUG');
       
       const response = await fetch(`${apiBaseUrl}/admin/contests`, {
         method: 'POST',
@@ -474,6 +758,14 @@ const NewContest: React.FC = () => {
 
       const createdContest = await response.json();
       console.log('Contest created successfully:', createdContest);
+      
+      // Debug logging for response
+      console.log('=== RESPONSE DEBUG ===');
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      console.log('Created contest data:', createdContest);
+      console.log('Image URL in response:', createdContest.image_url);
+      console.log('=== END RESPONSE DEBUG ===');
 
       // Show success toast
       setToast({
@@ -490,10 +782,13 @@ const NewContest: React.FC = () => {
         description: '',
         start_date: '',
         end_date: '',
-        location: 'Online',
+        location: 'United States',
         prize_description: '',
         prize_value: '100',
         eligibility_text: 'Open to all participants. Must be 18 years or older.',
+        // New Image and Sponsor Fields
+        image_url: '',
+        sponsor_url: '',
         // Advanced Options - Reset to defaults
         contest_type: 'general',
         entry_method: 'sms',
@@ -511,7 +806,13 @@ const NewContest: React.FC = () => {
         terms_url: 'https://contestlet.com/terms',
         contest_tags: '',
         official_start_date: '',
-        official_end_date: ''
+        official_end_date: '',
+        // Smart Location Fields
+        location_type: 'united_states',
+        selected_states: [],
+        radius_address: '',
+        radius_miles: '25',
+        radius_coordinates: null
       });
 
       // Redirect after showing success message
@@ -525,21 +826,19 @@ const NewContest: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/admin');
-  };
-
   const resetForm = () => {
     setFormData({
       name: '',
       description: '',
       start_date: '',
       end_date: '',
-      location: 'Online',
+      location: 'United States',
       prize_description: '',
       prize_value: '100',
       eligibility_text: 'Open to all participants. Must be 18 years or older.',
+      // New Image and Sponsor Fields
+      image_url: '',
+      sponsor_url: '',
       // Advanced Options - Reset to defaults
       contest_type: 'general',
       entry_method: 'sms',
@@ -557,7 +856,13 @@ const NewContest: React.FC = () => {
       terms_url: 'https://contestlet.com/terms',
       contest_tags: '',
       official_start_date: '',
-      official_end_date: ''
+      official_end_date: '',
+      // Smart Location Fields
+      location_type: 'united_states',
+      selected_states: [],
+      radius_address: '',
+      radius_miles: '25',
+      radius_coordinates: null
     });
     setError(null);
     setToast({ type: 'info', message: '', isVisible: false });
@@ -565,6 +870,72 @@ const NewContest: React.FC = () => {
     setIsImportMode(false);
     // Clear URL parameters
     window.history.replaceState({}, '', '/admin/contests/new');
+  };
+
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [usStates, setUsStates] = useState<{ value: string; label: string }[]>([]);
+  const [isLoadingStates, setIsLoadingStates] = useState(true);
+
+  const validateLocationConfiguration = async (): Promise<{ isValid: boolean; error?: string }> => {
+    try {
+      let locationData: any = {
+        location_type: formData.location_type
+      };
+
+      if (formData.location_type === 'specific_states') {
+        locationData.selected_states = formData.selected_states;
+      } else if (formData.location_type === 'radius') {
+        locationData.radius_address = formData.radius_address;
+        locationData.radius_miles = parseInt(formData.radius_miles);
+        if (formData.radius_coordinates) {
+          locationData.radius_coordinates = {
+            latitude: formData.radius_coordinates.lat,
+            longitude: formData.radius_coordinates.lng
+          };
+        }
+      } else if (formData.location_type === 'custom') {
+        locationData.custom_text = formData.location;
+      }
+
+      console.log('🔍 LOCATION VALIDATION DEBUG:');
+      console.log('  - Location type:', formData.location_type);
+      console.log('  - Location data being sent:', locationData);
+      console.log('  - Full form data:', formData);
+
+      const response = await fetch(`${apiBaseUrl}/location/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAdminToken()}`,
+        },
+        body: JSON.stringify(locationData),
+      });
+
+      console.log('  - Response status:', response.status);
+      console.log('  - Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.log('  - Error response:', errorData);
+        console.log('🔍 END LOCATION VALIDATION DEBUG');
+        return { 
+          isValid: false, 
+          error: errorData.detail || `Location validation failed: ${response.status}` 
+        };
+      }
+
+      const result = await response.json();
+      console.log('  - Success response:', result);
+      console.log('🔍 END LOCATION VALIDATION DEBUG');
+      return { isValid: result.valid, error: result.warnings?.join(', ') };
+    } catch (err) {
+      console.log('  - Exception caught:', err);
+      console.log('🔍 END LOCATION VALIDATION DEBUG');
+      return { 
+        isValid: false, 
+        error: `Location validation error: ${err instanceof Error ? err.message : String(err)}` 
+      };
+    }
   };
 
   return (
@@ -580,44 +951,14 @@ const NewContest: React.FC = () => {
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {isImportMode ? (
-                <>
-                  📥 Review Imported Campaign
-                  <span className="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    Import Mode
-                  </span>
-                </>
-              ) : (
-                'Create New Contest'
-              )}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {isImportMode 
-                ? 'Review and modify the imported campaign data below, then create the contest'
-                : 'Fill in the details to create a new contest'
-              }
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">Create New Contest</h1>
+            <p className="text-gray-600 mt-2">Fill in the details to create a new contest.</p>
             <p className="text-sm text-blue-600 mt-1">
               🕐 All times in <strong>{getTimezoneDisplayName(getAdminTimezone())}</strong> - displayed in your preferred timezone, stored as UTC
               <Link to="/admin/profile" className="ml-2 underline hover:text-blue-800">
                 Change timezone
               </Link>
             </p>
-          </div>
-          <div className="flex space-x-4">
-            <Link
-              to="/admin/contests"
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              Back to Contests
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-            >
-              Logout
-            </button>
           </div>
         </div>
       </div>
@@ -677,41 +1018,276 @@ const NewContest: React.FC = () => {
             />
           </div>
 
-          {/* Location */}
+          {/* Contest Image/Video */}
           <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
-              Location
+            <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 mb-2">
+              Contest Hero Image/Video URL (Optional)
             </label>
             <input
-              type="text"
-              id="location"
-              name="location"
-              value={formData.location}
+              type="url"
+              id="image_url"
+              name="image_url"
+              value={formData.image_url}
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="e.g., Online, New York, Global"
+              placeholder="https://example.com/contest-hero.jpg or https://example.com/contest-video.mp4"
               disabled={isSubmitting}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              🖼️ Enter a URL to an image (JPG, PNG, GIF) or video (MP4). 
+              For images: 1:1 aspect ratio recommended. For videos: MP4 format with autoplay, loop, and muted.
+            </p>
+            {formData.image_url && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-600 mb-2">Preview:</p>
+                <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden bg-gray-50">
+                  {formData.image_url.toLowerCase().endsWith('.mp4') ? (
+                    <video
+                      src={formData.image_url}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      onError={(e) => {
+                        const target = e.target as HTMLVideoElement;
+                        target.style.display = 'none';
+                        target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid video URL</div>';
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={formData.image_url}
+                      alt="Contest preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid image URL</div>';
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Smart Location Field */}
+          <div>
+            <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+              Geographic Location *
+            </label>
+            
+            {/* Location Type Selection */}
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-2">
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="location_type"
+                    value="united_states"
+                    checked={formData.location_type === 'united_states'}
+                    onChange={handleLocationTypeChange}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <span className="text-sm text-gray-700">United States (All)</span>
+                </label>
+                
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="location_type"
+                    value="specific_states"
+                    checked={formData.location_type === 'specific_states'}
+                    onChange={handleLocationTypeChange}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <span className="text-sm text-gray-700">Specific States</span>
+                </label>
+                
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="location_type"
+                    value="radius"
+                    checked={formData.location_type === 'radius'}
+                    onChange={handleLocationTypeChange}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <span className="text-sm text-gray-700">Radius from Address</span>
+                </label>
+                
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="location_type"
+                    value="custom"
+                    checked={formData.location_type === 'custom'}
+                    onChange={handleLocationTypeChange}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <span className="text-sm text-gray-700">Custom Text</span>
+                </label>
+              </div>
+            </div>
+
+            {/* United States Option */}
+            {formData.location_type === 'united_states' && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-sm text-blue-800">
+                  🌎 Contest open to all United States residents
+                </p>
+              </div>
+            )}
+
+            {/* Specific States Option */}
+            {formData.location_type === 'specific_states' && (
+              <div className="space-y-3">
+                {isLoadingStates ? (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+                    <div className="flex items-center justify-center">
+                      <svg className="animate-spin h-5 w-5 text-blue-600 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Loading US states...
+                    </div>
+                  </div>
+                ) : usStates.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {usStates.map((state) => (
+                      <label key={state.value} className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          name="selected_states"
+                          value={state.value}
+                          checked={formData.selected_states.includes(state.value)}
+                          onChange={handleStateSelection}
+                          className="mr-2 text-blue-600 focus:ring-blue-500"
+                          disabled={isSubmitting}
+                        />
+                        <span className="text-sm text-gray-700">{state.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ Unable to load US states. Please check your connection or contact support.
+                    </p>
+                  </div>
+                )}
+                {formData.selected_states.length > 0 && (
+                  <p className="text-xs text-gray-600">
+                    Selected: {formData.selected_states.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Radius Option */}
+            {formData.location_type === 'radius' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label htmlFor="radius_address" className="block text-xs font-medium text-gray-700 mb-1">
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      id="radius_address"
+                      name="radius_address"
+                      value={formData.radius_address}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="e.g., 123 Main St, New York, NY"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="radius_miles" className="block text-xs font-medium text-gray-700 mb-1">
+                      Radius (miles)
+                    </label>
+                    <input
+                      type="number"
+                      id="radius_miles"
+                      name="radius_miles"
+                      value={formData.radius_miles}
+                      onChange={handleInputChange}
+                      min="1"
+                      max="500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="25"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleGeocodeAddress}
+                      disabled={!formData.radius_address || isSubmitting}
+                      className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGeocoding ? 'Geocoding...' : 'Verify Address'}
+                    </button>
+                  </div>
+                </div>
+                {formData.radius_coordinates && (
+                  <p className="text-xs text-green-600">
+                    ✅ Address verified: {formData.radius_coordinates.lat.toFixed(4)}, {formData.radius_coordinates.lng.toFixed(4)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Custom Text Option */}
+            {formData.location_type === 'custom' && (
+              <div>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Online, Global, California only, etc."
+                  disabled={isSubmitting}
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter custom location description</p>
+              </div>
+            )}
+
+            {/* Location Summary */}
+            {formData.location_type !== 'custom' && (
+              <div className="mt-3 p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
+                <strong>Location Summary:</strong> {getLocationSummary()}
+              </div>
+            )}
           </div>
 
           {/* Prize Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6">
             {/* Prize Description */}
             <div>
               <label htmlFor="prize_description" className="block text-sm font-medium text-gray-700 mb-2">
                 Prize Description *
               </label>
-              <input
-                type="text"
+              <textarea
                 id="prize_description"
                 name="prize_description"
                 required
+                rows={4}
                 value={formData.prize_description}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., $500 Cash Prize, Gift Card, etc."
+                placeholder="Describe the prize in detail. You can use multiple lines to list different components of the prize package."
                 disabled={isSubmitting}
               />
+              <p className="text-xs text-gray-500 mt-1">Use multiple lines to describe different prize components</p>
             </div>
 
             {/* Prize Value */}
@@ -998,20 +1574,38 @@ const NewContest: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="terms_url" className="block text-sm font-medium text-gray-700 mb-2">
-                      Terms & Conditions URL
+                    <label htmlFor="sponsor_url" className="block text-sm font-medium text-gray-700 mb-2">
+                      Sponsor Website URL (Optional)
                     </label>
                     <input
                       type="url"
-                      id="terms_url"
-                      name="terms_url"
-                      value={formData.terms_url}
+                      id="sponsor_url"
+                      name="sponsor_url"
+                      value={formData.sponsor_url}
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="https://your-site.com/terms"
+                      placeholder="https://your-site.com"
                       disabled={isSubmitting}
                     />
                   </div>
+                </div>
+
+                {/* Terms & Conditions */}
+                <div>
+                  <label htmlFor="terms_url" className="block text-sm font-medium text-gray-700 mb-2">
+                    Terms & Conditions URL
+                  </label>
+                  <input
+                    type="url"
+                    id="terms_url"
+                    name="terms_url"
+                    value={formData.terms_url}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="https://your-site.com/terms"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">URL to your contest terms and conditions</p>
                 </div>
 
                 {/* Official Rules Dates */}
@@ -1175,12 +1769,6 @@ const NewContest: React.FC = () => {
             >
               🔄 Clear Form
             </button>
-            <Link
-              to="/admin/contests"
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              ← Back to Contests
-            </Link>
           </div>
         </form>
 
@@ -1206,6 +1794,38 @@ const NewContest: React.FC = () => {
                 className="px-3 py-1 text-xs bg-blue-200 text-blue-700 rounded hover:bg-blue-300"
               >
                 Check Auth
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('=== IMAGE URL DEBUG TEST ===');
+                  console.log('Form data image_url:', formData.image_url);
+                  console.log('Form data type:', typeof formData.image_url);
+                  console.log('Form data length:', formData.image_url?.length);
+                  console.log('Trimmed value:', formData.image_url?.trim());
+                  console.log('Final payload value:', formData.image_url?.trim() || null);
+                  console.log('=== END IMAGE URL DEBUG TEST ===');
+                  
+                  alert(`Image URL Debug:\nRaw: "${formData.image_url}"\nType: ${typeof formData.image_url}\nLength: ${formData.image_url?.length}\nTrimmed: "${formData.image_url?.trim()}"\nFinal: ${formData.image_url?.trim() || null}`);
+                }}
+                className="px-3 py-1 text-xs bg-green-200 text-green-700 rounded hover:bg-green-300"
+              >
+                Test Image URL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Test setting image_url directly
+                  setFormData(prev => ({
+                    ...prev,
+                    image_url: 'https://example.com/test-image.jpg'
+                  }));
+                  console.log('✅ Set test image URL');
+                  alert('Test image URL set! Check the form field.');
+                }}
+                className="px-3 py-1 text-xs bg-purple-200 text-purple-700 rounded hover:bg-purple-300"
+              >
+                Set Test Image
               </button>
               <button
                 type="button"

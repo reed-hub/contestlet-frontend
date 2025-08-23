@@ -17,6 +17,10 @@ interface ContestFormData {
   prize_value: string; // Will map to official_rules.prize_value_usd
   eligibility_text: string; // Will map to official_rules.eligibility_text
   
+  // New Image and Sponsor Fields
+  image_url: string; // Contest hero image URL
+  sponsor_url: string; // Sponsor website URL
+  
   // Advanced Options (10 fields)
   contest_type: string; // 'general', 'sweepstakes', 'instant_win'
   entry_method: string; // 'sms', 'email', 'web_form' (renamed from entry_type)
@@ -75,6 +79,10 @@ const EditContest: React.FC = () => {
     end_date: '',
     prize_value: '',
     eligibility_text: '',
+    
+    // New Image and Sponsor Fields
+    image_url: '',
+    sponsor_url: '',
     
     // Advanced Options - Default Values
     contest_type: 'general',
@@ -177,6 +185,10 @@ const EditContest: React.FC = () => {
           prize_value: foundContest.official_rules?.prize_value_usd?.toString() || '100',
           eligibility_text: foundContest.official_rules?.eligibility_text || 'Open to all participants. Must be 18 years or older.',
           
+          // New Image and Sponsor Fields
+          image_url: foundContest.image_url || '',
+          sponsor_url: foundContest.sponsor_url || '',
+          
           // Advanced Options - Extract from contest data or use defaults
           contest_type: (foundContest as any).contest_type || 'general',
           entry_method: (foundContest as any).entry_method || (foundContest as any).entry_type || 'sms', // renamed from entry_type
@@ -241,9 +253,13 @@ const EditContest: React.FC = () => {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Ensure value is always a string to prevent React controlled/uncontrolled issues
+    const safeValue = value || '';
+    
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: safeValue
     }));
     
     // Clear error when user starts typing
@@ -331,6 +347,10 @@ const EditContest: React.FC = () => {
         start_time: startTime,
         end_time: endTime,
         
+        // New Image and Sponsor Fields
+        image_url: formData.image_url.trim() || '',
+        sponsor_url: formData.sponsor_url.trim() || '',
+        
         // Advanced Options (10 fields)
         contest_type: formData.contest_type,
         entry_method: formData.entry_method, // renamed from entry_type
@@ -363,6 +383,11 @@ const EditContest: React.FC = () => {
 
       console.log('Updating contest with payload:', payload);
       console.log('Using admin token:', adminToken.substring(0, 20) + '...');
+      console.log('🔍 PAYLOAD IMAGE URL DEBUG:');
+      console.log('  - Payload image_url:', payload.image_url);
+      console.log('  - Payload image_url type:', typeof payload.image_url);
+      console.log('  - Full payload object:', JSON.stringify(payload, null, 2));
+      console.log('🔍 END PAYLOAD IMAGE URL DEBUG');
 
       const response = await fetch(`${apiBaseUrl}/admin/contests/${contest_id}`, {
         method: 'PUT',
@@ -375,6 +400,16 @@ const EditContest: React.FC = () => {
 
       const result = await response.json();
       console.log('Update response:', { status: response.status, result });
+      console.log('🔍 RESPONSE IMAGE URL DEBUG:');
+      console.log('  - Response status:', response.status);
+      console.log('  - Response result image_url:', result.image_url);
+      console.log('  - Response result image_url type:', typeof result.image_url);
+      console.log('  - COMPARISON: What we sent vs what we got back:');
+      console.log('    Sent image_url:', payload.image_url);
+      console.log('    Got back image_url:', result.image_url);
+      console.log('    Sent sponsor_url:', payload.sponsor_url);
+      console.log('    Got back sponsor_url:', result.sponsor_url);
+      console.log('🔍 END RESPONSE IMAGE URL DEBUG');
       
       if (result && result.start_time && result.end_time) {
         console.log('Backend returned start_time:', result.start_time);
@@ -413,12 +448,24 @@ const EditContest: React.FC = () => {
             
             setFormData(prev => {
               console.log('  Previous form data:', prev);
+              console.log('  Previous image_url:', prev.image_url);
+              console.log('  Backend response image_url:', updatedContest.image_url);
+              console.log('  Backend response sponsor_url:', updatedContest.sponsor_url);
+              
               const newData = {
                 ...prev,
                 start_date: convertedStartDate,
                 end_date: convertedEndDate,
+                // Preserve user's input for image and sponsor fields
+                // Convert null/undefined to empty strings to prevent React controlled/uncontrolled issues
+                image_url: updatedContest.image_url || prev.image_url || '',
+                sponsor_url: updatedContest.sponsor_url || prev.sponsor_url || '',
               };
+              
               console.log('  New form data:', newData);
+              console.log('  Final image_url:', newData.image_url);
+              console.log('  Final sponsor_url:', newData.sponsor_url);
+              console.log('  Complete new form data:', JSON.stringify(newData, null, 2));
               return newData;
             });
             
@@ -757,10 +804,85 @@ const EditContest: React.FC = () => {
                 name="eligibility_text"
                 value={formData.eligibility_text}
                 onChange={handleInputChange}
+                required
                 rows={3}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Contest eligibility requirements"
+                placeholder="Describe who is eligible to enter this contest"
               />
+            </div>
+
+            {/* Contest Image/Video */}
+            <div>
+              <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 mb-2">
+                Contest Hero Image/Video URL (Optional)
+              </label>
+              <input
+                type="url"
+                id="image_url"
+                name="image_url"
+                value={formData.image_url}
+                onChange={handleInputChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="https://example.com/contest-hero.jpg or https://example.com/contest-video.mp4"
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                🖼️ Enter a URL to an image (JPG, PNG, GIF) or video (MP4). 
+                For images: 1:1 aspect ratio recommended. For videos: MP4 format with autoplay, loop, and muted.
+              </p>
+              {formData.image_url && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600 mb-2">Preview:</p>
+                  <div className="w-32 h-32 border border-gray-200 rounded-md overflow-hidden bg-gray-50">
+                    {formData.image_url.toLowerCase().endsWith('.mp4') ? (
+                      <video
+                        src={formData.image_url}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        onError={(e) => {
+                          const target = e.target as HTMLVideoElement;
+                          target.style.display = 'none';
+                          target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid video URL</div>';
+                        }}
+                      />
+                    ) : (
+                      <img
+                        src={formData.image_url}
+                        alt="Contest preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid image URL</div>';
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sponsor Website URL */}
+            <div>
+              <label htmlFor="sponsor_url" className="block text-sm font-medium text-gray-700 mb-2">
+                Sponsor Website URL (Optional)
+              </label>
+              <input
+                type="url"
+                id="sponsor_url"
+                name="sponsor_url"
+                value={formData.sponsor_url}
+                onChange={handleInputChange}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="https://example.com"
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Link to your sponsor's website for more information.
+              </p>
             </div>
 
 

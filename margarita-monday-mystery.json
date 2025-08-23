@@ -1,0 +1,29 @@
+{
+  "name": "Margarita Monday Mystery",
+  "description": "Unlock the secret to the perfect margarita! Enter for your chance to win a complete home bar setup and master the art of cocktail crafting.",
+  "reward_logic": {
+    "type": "random_winner",
+    "winner_reward": "Complete Home Bar Setup with premium cocktail shaker, mixing tools, premium tequilas and liqueurs, professional bartending course voucher, margarita recipe book and glassware set, and monthly cocktail subscription for 6 months",
+    "consolation_offer": "20% off your first cocktail kit order"
+  },
+  "entry_type": "SMS opt-in",
+  "messaging": {
+    "initial_sms": "You're entered in Margarita Monday Mystery! Unlock the secret to perfect margaritas. Good luck!",
+    "winner_sms": "Congratulations! You've unlocked the Margarita Monday Mystery! Check your email for your complete home bar setup details.",
+    "non_winner_sms": "Thanks for entering Margarita Monday Mystery! Here's your consolation offer: 20% off your first cocktail kit order."
+  },
+  "promotion_channels": ["instagram", "facebook", "email", "website", "sms"],
+  "rules": [
+    "Must be 21 or older to participate (alcohol-related contest)",
+    "One entry per phone number",
+    "Winner will be contacted via SMS",
+    "Must be US resident",
+    "Must opt-in to SMS marketing"
+  ],
+  "requirements": [
+    "Valid US phone number required",
+    "Must be 21 years or older",
+    "Must opt-in to SMS marketing",
+    "US residents only"
+  ]
+}

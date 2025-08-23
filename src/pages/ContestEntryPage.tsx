@@ -12,6 +12,8 @@ interface Contest {
   end_time: string;
   prize_description: string;
   image_url?: string; // New field for 1:1 contest image
+  sponsor_url?: string; // Sponsor website URL
+  sponsor_name?: string; // Direct sponsor name field
   official_rules?: {
     eligibility_text: string;
     sponsor_name: string;
@@ -50,20 +52,22 @@ const ContestEntryPage: React.FC = () => {
 
   // Sample contest data for demonstration
   const sampleContest: Contest = {
-    id: 'sample-1',
-    name: 'The Island of Maui Adventure of a Lifetime',
-    description: 'Get ready to pack your bags – you could win the trip of a lifetime to Hawai\'i for 2!',
-    location: 'United States',
+    id: contest_id || 'sample-1',
+    name: 'Sample Contest',
+    description: 'This is a sample contest for demonstration purposes. The actual contest data should be loaded from the database.',
+    location: 'Online',
     start_time: new Date().toISOString(),
     end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-    prize_description: 'Two (2) roundtrip tickets on Southwest Airlines from Dallas to Maui, HI\nA 3-night stay, double occupancy, at the Grand Manila Hotel Hilo on the island of Hawai\'i (subject to availability at the time of booking)\nA 2-night stay, double occupancy, at the Royal Kona Resort on the island of Hawaii (subject to availability at the time of booking)\nA Snorkel Adventure or Evening Manta Swim for two (2) guests with Fair Wind Cruises on the beautiful Kona Coast\nKilauea Volcano and Dinner Tour for two (2) guests with Kailani Tours\nUmauma Experience Zipline Adventure for two (2) guests',
-    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop&crop=center', // Sample Maui resort image
+    prize_description: 'Sample prize description with multiple components:\n• First prize component\n• Second prize component\n• Third prize component\n\nPlease check the database for actual contest details.',
+    image_url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=800&fit=crop&crop=center', // Generic contest image
+    sponsor_name: 'Sample Sponsor',
+    sponsor_url: 'https://example.com', // Added sponsor_url
     official_rules: {
       eligibility_text: 'Open to all participants. Must be 18 years or older.',
-      sponsor_name: 'Travel Adventure Show',
+      sponsor_name: 'Sample Sponsor',
       start_date: new Date().toISOString(),
       end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      prize_value_usd: 5000,
+      prize_value_usd: 100,
       terms_url: 'https://example.com/terms'
     }
   };
@@ -389,15 +393,15 @@ const ContestEntryPage: React.FC = () => {
           
           {/* Contest Information Section */}
           <div className="p-6 space-y-6">
-            {/* Travel Adventure Show Label */}
-            <div className="text-blue-600 text-sm font-medium">
-              Travel Adventure Show
-            </div>
-            
             {/* Contest Title */}
             <h1 className="text-3xl font-bold text-gray-900 leading-tight">
               {contest.name}
             </h1>
+            
+            {/* Sponsor Name - Important Basic Information */}
+            <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full inline-block w-fit">
+              {contest?.official_rules?.sponsor_name || contest?.sponsor_name || 'Contest Sponsor'}
+            </div>
             
             {/* Location and End Time */}
             <div className="flex items-center space-x-6 text-sm text-gray-600">

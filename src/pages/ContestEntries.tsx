@@ -24,6 +24,8 @@ interface Contest {
   start_time: string;
   end_time: string;
   prize_description: string;
+  image_url?: string; // Contest hero image URL
+  sponsor_url?: string; // Sponsor website URL
   active: boolean; // Keep for backward compatibility
   status?: 'upcoming' | 'active' | 'ended' | 'complete'; // New server-provided status
   created_at: string;

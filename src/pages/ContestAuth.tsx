@@ -13,6 +13,8 @@ interface Contest {
   end_time: string;
   prize_description: string;
   image_url?: string;
+  sponsor_url?: string; // Sponsor website URL
+  sponsor_name?: string; // Direct sponsor name field
   official_rules?: {
     eligibility_text: string;
     sponsor_name: string;
@@ -43,22 +45,24 @@ const ContestAuth: React.FC = () => {
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-  // Sample contest data for demonstration
+  // Sample contest data for demonstration (fallback only)
   const sampleContest: Contest = {
     id: contest_id || 'sample-1',
-    name: 'The Island of Maui Adventure of a Lifetime',
-    description: 'Get ready to pack your bags – you could win the trip of a lifetime to Hawai\'i for 2!',
-    location: 'United States',
+    name: 'Sample Contest',
+    description: 'This is a sample contest for demonstration purposes. The actual contest data should be loaded from the database.',
+    location: 'Online',
     start_time: new Date().toISOString(),
     end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-    prize_description: 'Two (2) roundtrip tickets on Southwest Airlines from Dallas to Maui, HI\nA 3-night stay, double occupancy, at the Grand Manila Hotel Hilo on the island of Hawai\'i (subject to availability at the time of booking)\nA 2-night stay, double occupancy, at the Royal Kona Resort on the island of Hawaii (subject to availability at the time of booking)\nA Snorkel Adventure or Evening Manta Swim for two (2) guests with Fair Wind Cruises on the beautiful Kona Coast\nKilauea Volcano and Dinner Tour for two (2) guests with Kailani Tours\nUmauma Experience Zipline Adventure for two (2) guests',
-    image_url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop&crop=center', // Sample Maui resort image
+    prize_description: 'Sample prize description with multiple components:\n• First prize component\n• Second prize component\n• Third prize component\n\nPlease check the database for actual contest details.',
+    image_url: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=800&fit=crop&crop=center', // Generic contest image
+    sponsor_name: 'Sample Sponsor',
+    sponsor_url: 'https://example.com', // Added sponsor_url
     official_rules: {
       eligibility_text: 'Open to all participants. Must be 18 years or older.',
-      sponsor_name: 'Travel Adventure Show',
+      sponsor_name: 'Sample Sponsor',
       start_date: new Date().toISOString(),
       end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      prize_value_usd: 5000,
+      prize_value_usd: 100,
       terms_url: 'https://example.com/terms'
     }
   };
@@ -66,31 +70,72 @@ const ContestAuth: React.FC = () => {
   // Fetch contest data on component mount
   useEffect(() => {
     const fetchContest = async () => {
+      console.log('🔍 Fetching contest data for ID:', contest_id);
+      
       if (!contest_id) {
+        console.log('⚠️ No contest ID provided, using sample data');
         setContest(sampleContest);
         return;
       }
 
       try {
-        // Try to fetch from the actual API endpoint first
-        const response = await fetch(`${apiBaseUrl}/contest/${contest_id}`);
+        // Try to fetch from the admin endpoint first (temporary solution)
+        // TODO: Replace with public endpoint when backend implements it
+        const adminToken = localStorage.getItem('contestlet_admin_token');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
         
-        if (response.ok) {
-          const contestData: Contest = await response.json();
-          console.log('Fetched contest from API:', contestData);
+        if (adminToken) {
+          headers['Authorization'] = `Bearer ${adminToken}`;
+          console.log('🔑 Using admin token for contest fetch');
+        } else {
+          console.log('⚠️ No admin token found, trying public endpoint');
+        }
+
+        // Try admin endpoint first
+        console.log('📡 Fetching from admin endpoint...');
+        const adminResponse = await fetch(`${apiBaseUrl}/admin/contests`, {
+          headers,
+        });
+        
+        if (adminResponse.ok) {
+          const contestsData = await adminResponse.json();
+          console.log('📊 Admin API response:', contestsData);
+          
+          const contestData = contestsData.find((c: any) => c.id.toString() === contest_id);
+          
+          if (contestData) {
+            console.log('✅ Found contest in admin API:', contestData);
+            setContest(contestData);
+            return;
+          } else {
+            console.log('❌ Contest not found in admin API response');
+          }
+        } else {
+          console.log('❌ Admin API failed:', adminResponse.status, adminResponse.statusText);
+        }
+
+        // Fallback: Try public endpoint (when implemented)
+        console.log('📡 Trying public endpoint...');
+        const publicResponse = await fetch(`${apiBaseUrl}/contest/${contest_id}`);
+        
+        if (publicResponse.ok) {
+          const contestData: Contest = await publicResponse.json();
+          console.log('✅ Fetched contest from public API:', contestData);
           setContest(contestData);
-        } else if (response.status === 404) {
+        } else if (publicResponse.status === 404) {
           // Contest not found - use sample data for demo
-          console.log('Contest not found in API, using sample data');
+          console.log('⚠️ Contest not found in public API, using sample data');
           setContest(sampleContest);
         } else {
           // API error - fall back to sample data
-          console.log('API error, using sample data:', response.status);
+          console.log('❌ Public API error, using sample data:', publicResponse.status);
           setContest(sampleContest);
         }
       } catch (err) {
         // Network error or API not available - use sample data
-        console.log('Network error or API not available, using sample data:', err);
+        console.log('💥 Network error or API not available, using sample data:', err);
         setContest(sampleContest);
       }
     };
@@ -330,15 +375,36 @@ const ContestAuth: React.FC = () => {
       />
       
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          {/* Hero Image Section - 1:1 Format */}
+        <div className="bg-white shadow-lg rounded-[28px] overflow-hidden">
+          {/* Hero Image/Video Section - 1:1 Format */}
           {contest.image_url && (
             <div className="relative w-full aspect-square">
-              <img 
-                src={contest.image_url} 
-                alt={contest.name}
-                className="w-full h-full object-cover"
-              />
+              {contest.image_url.toLowerCase().endsWith('.mp4') ? (
+                <video
+                  src={contest.image_url}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  onError={(e) => {
+                    const target = e.target as HTMLVideoElement;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid video URL</div>';
+                  }}
+                />
+              ) : (
+                <img 
+                  src={contest.image_url} 
+                  alt={contest.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center text-xs text-gray-500">Invalid image URL</div>';
+                  }}
+                />
+              )}
               {/* Optional overlay for text readability */}
               <div className="absolute inset-0 bg-black bg-opacity-20"></div>
             </div>
@@ -346,9 +412,9 @@ const ContestAuth: React.FC = () => {
           
           {/* Contest Information Section */}
           <div className="p-6 space-y-6">
-            {/* Travel Adventure Show Label */}
-            <div className="text-blue-600 text-sm font-medium">
-              Travel Adventure Show
+            {/* Sponsor Name - Above Title */}
+            <div className="text-sm font-medium text-blue-600">
+              {contest?.official_rules?.sponsor_name || contest?.sponsor_name || 'Contest Sponsor'}
             </div>
             
             {/* Contest Title */}
@@ -381,7 +447,7 @@ const ContestAuth: React.FC = () => {
             {/* What You Can Win Section */}
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-4">What you can win</h2>
-              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+              <div className="bg-gray-50 rounded-[28px] p-6 border border-gray-200">
                 <div className="text-center mb-4">
                   <div className="text-3xl mb-2">👑</div>
                   <div className="text-sm text-gray-600 font-medium">1 WINNER</div>
@@ -398,7 +464,7 @@ const ContestAuth: React.FC = () => {
             </div>
             
             {/* Official Rules Section */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-[28px] border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900">Official Rules & Regulations</h3>
               <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -435,7 +501,7 @@ const ContestAuth: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isLoading || !phoneNumber.trim() || !!retryAfter}
-                      className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-lg"
+                      className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-lg"
                     >
                       {isLoading ? (
                         <div className="flex items-center justify-center">
@@ -486,7 +552,7 @@ const ContestAuth: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isLoading || otpCode.length !== 6}
-                        className="flex-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                        className="flex-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                       >
                         {isLoading ? (
                           <div className="flex items-center justify-center">
