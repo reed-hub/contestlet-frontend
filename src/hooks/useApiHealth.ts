@@ -14,11 +14,21 @@ interface ApiHealthState {
 export const useApiHealth = () => {
   const [state, setState] = useState<ApiHealthState>({
     data: null,
-    loading: true,
+    loading: false, // Changed to false to prevent loading state
     error: null,
   });
 
   useEffect(() => {
+    // TEMPORARY FIX: Disable API health checks on staging to prevent CORS errors
+    // TODO: Remove this when backend CORS is fixed
+    const isStaging = window.location.hostname === 'staging-app.contestlet.com';
+    
+    if (isStaging) {
+      console.log('🚨 API health checks disabled on staging due to CORS issues');
+      console.log('🔧 Backend team needs to add CORS origin: https://staging-app.contestlet.com');
+      return;
+    }
+
     const fetchApiHealth = async () => {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }));
