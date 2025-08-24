@@ -13,6 +13,7 @@ import EditContest from './pages/EditContest';
 import ContestEntries from './pages/ContestEntries';
 import NotificationLogs from './pages/NotificationLogs';
 import AdminProfile from './pages/AdminProfile';
+import Settings from './pages/Settings';
 import SponsorDashboard from './pages/SponsorDashboard';
 import SponsorContests from './pages/SponsorContests';
 import SponsorCreateContest from './pages/SponsorCreateContest';
@@ -50,6 +51,9 @@ function App() {
           <Route path="admin/contests/:contest_id/entries" element={<ContestEntries />} />
           <Route path="admin/notifications" element={<NotificationLogs />} />
           <Route path="admin/profile" element={<AdminProfile />} />
+          
+          {/* Settings Route */}
+          <Route path="settings" element={<Settings />} />
           
           {/* Sponsor Routes */}
           <Route path="sponsor/dashboard" element={

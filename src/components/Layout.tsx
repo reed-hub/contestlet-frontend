@@ -164,12 +164,12 @@ const Layout: React.FC = () => {
                           
                           {/* Universal links */}
                           <Link
-                            to="/profile"
+                            to="/settings"
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                             onClick={() => setUserDropdownOpen(false)}
                           >
                             <span className="mr-3">⚙️</span>
-                            Profile
+                            Settings
                           </Link>
                           
                           <div className="border-t border-gray-100"></div>
@@ -333,11 +333,11 @@ const Layout: React.FC = () => {
                     </>
                   )}
                   <Link
-                    to="/profile"
+                    to="/settings"
                     className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    ⚙️ Profile
+                    ⚙️ Settings
                   </Link>
                   <button
                     onClick={() => {
