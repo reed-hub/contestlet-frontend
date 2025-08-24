@@ -1,7 +1,8 @@
-// Authentication utilities for Contestlet API
+// Authentication utilities for Contestlet API - Updated for multi-tier role system
 
 const AUTH_TOKEN_KEY = 'contestlet_auth_token';
 const ADMIN_TOKEN_KEY = 'contestlet_admin_token';
+const ACCESS_TOKEN_KEY = 'access_token';
 
 // Legacy admin token (deprecated in favor of OTP authentication)
 // const ADMIN_BEARER_TOKEN = 'contestlet-admin-super-secret-token-change-in-production';
@@ -30,24 +31,25 @@ export const verifyAdminRole = async (token: string): Promise<boolean> => {
 export const logout = (): void => {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
 };
 
 export const isAuthenticated = (): boolean => {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(ACCESS_TOKEN_KEY);
   return !!token;
 };
 
 export const isAdminAuthenticated = (): boolean => {
-  const token = localStorage.getItem(ADMIN_TOKEN_KEY);
+  const token = localStorage.getItem(ADMIN_TOKEN_KEY) || localStorage.getItem(ACCESS_TOKEN_KEY);
   return !!token;
 };
 
 export const getToken = (): string | null => {
-  return localStorage.getItem(AUTH_TOKEN_KEY);
+  return localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(ACCESS_TOKEN_KEY);
 };
 
 export const getAdminToken = (): string | null => {
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
+  return localStorage.getItem(ADMIN_TOKEN_KEY) || localStorage.getItem(ACCESS_TOKEN_KEY);
 };
 
 export const setUserToken = (token: string): void => {
@@ -74,6 +76,7 @@ export const getUserPhone = (): string | null => {
 export const clearAllTokens = (): void => {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem('user_phone');
   // Also clear any old token keys that might be lingering
   localStorage.removeItem('admin_auth_token');
@@ -111,16 +114,41 @@ export interface SponsorProfile {
   updated_at: string;
 }
 
-// Role-based authentication functions
+// Role-based authentication functions - Updated to use new system
 export const getCurrentUser = (): User | null => {
-  // For now, we'll create a mock user based on stored tokens
-  // TODO: Replace with actual API call to get user profile
+  // Check for new access token first
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (accessToken) {
+    try {
+      // Simple JWT decode (payload only)
+      const base64Url = accessToken.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const decoded = JSON.parse(jsonPayload);
+      
+      if (decoded && decoded.role) {
+        return {
+          id: decoded.sub || decoded.user_id || 'unknown',
+          phone: decoded.phone || '',
+          role: decoded.role,
+          name: decoded.name || 'User',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      console.error('Error decoding access token:', error);
+    }
+  }
+  
+  // Fallback to legacy tokens
   const adminToken = getAdminToken();
   const userToken = getToken();
   const userPhone = getUserPhone();
   
   if (adminToken) {
-    // If admin token exists, return admin user
     return {
       id: 'admin-user',
       phone: userPhone || 'admin',
@@ -132,12 +160,10 @@ export const getCurrentUser = (): User | null => {
   }
   
   if (userToken && userPhone) {
-    // If user token exists, return user (default to 'user' role for now)
-    // TODO: Fetch actual user role from API
     return {
       id: 'user-' + userPhone,
       phone: userPhone,
-      role: 'user', // Default role, should be fetched from API
+      role: 'user', // Default role for legacy users
       name: 'User',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -186,7 +212,7 @@ export const canEnterContests = (): boolean => {
   return hasRole(['user', 'sponsor', 'admin']);
 };
 
-// Development/testing helper functions
+// Development/testing helper functions - Keep for now
 export const setUserRole = (role: UserRole): void => {
   // Store role in localStorage for development/testing
   // TODO: Remove this in production - roles should come from backend

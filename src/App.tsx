@@ -17,6 +17,7 @@ import SponsorDashboard from './pages/SponsorDashboard';
 import UserDashboard from './pages/UserDashboard';
 import RoleBasedRoute from './components/RoleBasedRoute';
 import RoleTester from './components/RoleTester';
+import RoleUpgradeForm from './components/RoleUpgradeForm';
 
 function App() {
   return (
@@ -31,6 +32,9 @@ function App() {
           
           {/* Role Testing (Development Only) */}
           <Route path="role-tester" element={<RoleTester />} />
+          
+          {/* Role Upgrade */}
+          <Route path="upgrade-to-sponsor" element={<RoleUpgradeForm />} />
           
           {/* Admin Routes */}
           <Route path="admin" element={<AdminLogin />} />
