@@ -800,8 +800,8 @@ const AdminContests: React.FC = () => {
                       View Entries
                     </button>
                     
-                    {/* Danger Zone - Delete Button */}
-                    <div className="pt-3 mt-3 border-t border-red-200">
+                    {/* Delete Button */}
+                    <div className="pt-3 mt-3">
                       {(() => {
                         const protectionInfo = getDeletionProtectionInfo(contest);
                         if (protectionInfo.canDelete) {
@@ -831,10 +831,10 @@ const AdminContests: React.FC = () => {
                               className="w-full inline-flex justify-center items-center px-3 py-2 border border-gray-300 text-xs font-medium rounded-md text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                               title="Click to see protection reasons"
                             >
-                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              Protected
+                              <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              Protected
                             </button>
                           );
                         }
@@ -875,8 +875,8 @@ const AdminContests: React.FC = () => {
                       </button>
                     </div>
                     
-                    {/* Danger Zone - Delete Button */}
-                    <div className="pt-2 border-t border-red-200">
+                    {/* Delete Button */}
+                    <div className="pt-2">
                       {(() => {
                         const protectionInfo = getDeletionProtectionInfo(contest);
                         if (protectionInfo.canDelete) {
@@ -906,10 +906,10 @@ const AdminContests: React.FC = () => {
                               className="w-full inline-flex justify-center items-center px-2 py-2 border border-gray-300 text-xs font-medium rounded-md text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                               title="Click to see protection reasons"
                             >
-                              <svg className="h-2 w-2 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              Protected
+                              <svg className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              Protected
                             </button>
                           );
                         }
