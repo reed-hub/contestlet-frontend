@@ -6,7 +6,7 @@ import ContestAuth from './pages/ContestAuth';
 import ContestSuccess from './pages/ContestSuccess';
 import ContestEntryPage from './pages/ContestEntryPage';
 import MyEntries from './pages/MyEntries';
-import AdminLogin from './pages/AdminLogin';
+import UniversalLogin from './pages/AdminLogin';
 import AdminContests from './pages/AdminContests';
 import NewContest from './pages/NewContest';
 import EditContest from './pages/EditContest';
@@ -36,8 +36,11 @@ function App() {
           {/* Role Upgrade */}
           <Route path="upgrade-to-sponsor" element={<RoleUpgradeForm />} />
           
+          {/* Universal Login */}
+          <Route path="login" element={<UniversalLogin />} />
+          
           {/* Admin Routes */}
-          <Route path="admin" element={<AdminLogin />} />
+          <Route path="admin" element={<UniversalLogin />} />
           <Route path="admin/contests" element={<AdminContests />} />
           <Route path="admin/contests/new" element={<NewContest />} />
           <Route path="admin/contests/:contest_id/edit" element={<EditContest />} />

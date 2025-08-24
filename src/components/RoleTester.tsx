@@ -214,7 +214,14 @@ const RoleTester: React.FC = () => {
       {/* Quick Navigation */}
       <div className="mt-6 pt-6 border-t border-gray-200">
         <h3 className="text-lg font-medium text-gray-900 mb-3">Quick Navigation</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <a
+            href="/login"
+            className="block p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+          >
+            <h4 className="font-medium text-indigo-900">Universal Login</h4>
+            <p className="text-sm text-indigo-700">Sign in with any role</p>
+          </a>
           <a
             href="/user/dashboard"
             className="block p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
