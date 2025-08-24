@@ -80,3 +80,73 @@ export const clearAllTokens = (): void => {
   localStorage.removeItem('contestlet_admin_token');
   localStorage.removeItem('contestlet-admin-token');
 };
+
+// User role types
+export type UserRole = 'admin' | 'sponsor' | 'user';
+
+// User interface with role
+export interface User {
+  id: string;
+  phone: string;
+  role: UserRole;
+  name?: string;
+  email?: string;
+  sponsor_profile?: SponsorProfile;
+  created_at: string;
+  updated_at: string;
+}
+
+// Sponsor profile interface
+export interface SponsorProfile {
+  id: string;
+  user_id: string;
+  company_name: string;
+  website_url?: string;
+  logo_url?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  industry?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Role-based authentication functions
+export const getUserRole = (): UserRole | null => {
+  const user = getCurrentUser();
+  return user?.role || null;
+};
+
+export const isAdmin = (): boolean => {
+  return getUserRole() === 'admin';
+};
+
+export const isSponsor = (): boolean => {
+  return getUserRole() === 'sponsor';
+};
+
+export const isUser = (): boolean => {
+  return getUserRole() === 'user';
+};
+
+export const hasRole = (allowedRoles: UserRole[]): boolean => {
+  const userRole = getUserRole();
+  return userRole ? allowedRoles.includes(userRole) : false;
+};
+
+// Role-based access control
+export const canManageContests = (): boolean => {
+  return hasRole(['admin', 'sponsor']);
+};
+
+export const canManageUsers = (): boolean => {
+  return hasRole(['admin']);
+};
+
+export const canManageSponsorProfiles = (): boolean => {
+  return hasRole(['admin', 'sponsor']);
+};
+
+export const canEnterContests = (): boolean => {
+  return hasRole(['user', 'sponsor', 'admin']);
+};
