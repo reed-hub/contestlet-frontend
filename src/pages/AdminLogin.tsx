@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { validateUSPhoneNumber, formatPhoneNumber, getCleanPhoneNumber } from '../utils/phoneValidation';
 
 const UniversalLogin: React.FC = () => {
   const [phone, setPhone] = useState('');
@@ -7,21 +8,69 @@ const UniversalLogin: React.FC = () => {
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const handlePhoneChange = (value: string) => {
+    // Format the phone number as user types
+    const formatted = formatPhoneNumber(value);
+    setPhone(formatted);
+    
+    // Clear previous error
+    setPhoneError(null);
+    
+    // Validate in real-time (but only if user has typed something)
+    if (formatted && formatted.length > 0) {
+      const validation = validateUSPhoneNumber(formatted);
+      if (!validation.isValid) {
+        setPhoneError(validation.error || 'Invalid phone number');
+      }
+    }
+  };
+
+  const handlePhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, tab, escape, enter, and navigation keys
+    if ([8, 9, 27, 13, 46, 37, 38, 39, 40].includes(e.keyCode)) {
+      return;
+    }
+    
+    // Allow only numbers and some formatting characters
+    if (!/[\d\s\(\)\-]/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Final validation before submission
+    const validation = validateUSPhoneNumber(phone);
+    if (!validation.isValid) {
+      setPhoneError(validation.error || 'Invalid phone number');
+      return;
+    }
+    
     setLoading(true);
     setMessage(null);
+    setPhoneError(null);
 
     try {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+      const cleanPhone = getCleanPhoneNumber(phone);
+      
+      // Debug logging
+      console.log('📱 Phone number debug:', {
+        original: phone,
+        cleaned: cleanPhone,
+        length: cleanPhone.length
+      });
+      
       const response = await fetch(`${apiBaseUrl}/auth/request-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: cleanPhone }),
       });
 
       if (response.ok) {
@@ -54,12 +103,14 @@ const UniversalLogin: React.FC = () => {
 
     try {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+      const cleanPhone = getCleanPhoneNumber(phone);
+      
       const response = await fetch(`${apiBaseUrl}/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone, code: otp }),
+        body: JSON.stringify({ phone: cleanPhone, code: otp }),
       });
 
       if (response.ok) {
@@ -159,19 +210,56 @@ const UniversalLogin: React.FC = () => {
                 type="tel"
                 required
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                onKeyDown={handlePhoneKeyDown}
                 className="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="+1 (555) 123-4567"
               />
+              {phoneError && (
+                <p className="mt-2 text-xs text-red-500">{phoneError}</p>
+              )}
               <p className="mt-2 text-xs text-gray-500">
                 We'll send a verification code to this number
               </p>
+              <p className="mt-1 text-xs text-gray-400">
+                Examples: +1 (555) 123-4567 or +1 555-123-4567
+              </p>
+              
+              {/* Quick Test Numbers (Development Only) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-gray-500 font-medium">Quick Test Numbers:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePhoneChange('+18187958204')}
+                      className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                    >
+                      Admin: +1 (818) 795-8204
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePhoneChange('+15551234567')}
+                      className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                    >
+                      User: +1 (555) 123-4567
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePhoneChange('+15559876543')}
+                      className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
+                    >
+                      Sponsor: +1 (555) 987-6543
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
               <button
                 type="submit"
-                disabled={loading || !phone.trim()}
+                disabled={loading || !phone.trim() || phoneError !== null}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {loading ? (

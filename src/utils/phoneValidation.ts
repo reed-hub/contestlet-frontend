@@ -46,33 +46,36 @@ export const validateUSPhoneNumber = (phoneNumber: string): { isValid: boolean; 
   } else if (digitsOnly.length === 10) {
     // Valid 10-digit format
     return { isValid: true };
+  } else if (digitsOnly.length < 10) {
+    return { isValid: false, error: `Phone number too short. Need ${10 - digitsOnly.length} more digit${10 - digitsOnly.length === 1 ? '' : 's'}` };
+  } else if (digitsOnly.length > 11) {
+    return { isValid: false, error: 'Phone number too long. Maximum 11 digits allowed' };
   } else {
     return { isValid: false, error: 'Phone number must be 10 digits or 11 digits starting with 1' };
   }
-  
-  // Check if first digit is not 0 or 1 (valid area code) - only for 10-digit numbers
-  if (digitsOnly.length === 10) {
-    if (digitsOnly[0] === '0' || digitsOnly[0] === '1') {
-      return { isValid: false, error: 'Invalid area code' };
-    }
-    
-    // Check if fourth digit is not 0 or 1 (valid exchange code)
-    if (digitsOnly[3] === '0' || digitsOnly[3] === '1') {
-      return { isValid: false, error: 'Invalid exchange code' };
-    }
-  }
-  
-  return { isValid: true };
 };
 
 export const getCleanPhoneNumber = (phoneNumber: string): string => {
   // Return just the digits for API submission
   const cleaned = phoneNumber.replace(/\D/g, '');
   
-  // If it's 11 digits starting with 1, return as-is
-  // If it's 10 digits, return as-is
-  // This preserves the original format for the API
-  return cleaned;
+  // If it's 11 digits starting with 1, return as-is with + prefix
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `+${cleaned}`;
+  }
+  
+  // If it's 10 digits, add +1 prefix
+  if (cleaned.length === 10) {
+    return `+1${cleaned}`;
+  }
+  
+  // For any other length, return with + prefix if it starts with 1
+  if (cleaned.startsWith('1')) {
+    return `+${cleaned}`;
+  }
+  
+  // Default: add +1 prefix
+  return `+1${cleaned}`;
 };
 
 export const normalizePhoneNumber = (phoneNumber: string): string => {
