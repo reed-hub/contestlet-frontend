@@ -27,6 +27,21 @@ const Settings: React.FC = () => {
     isVisible: boolean;
   }>({ type: 'info', message: '', isVisible: false });
 
+  // Get phone number from JWT token as fallback
+  const getPhoneFromToken = (): string | null => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        console.log('JWT payload:', payload);
+        return payload.phone || null;
+      }
+    } catch (error) {
+      console.error('Error parsing JWT token:', error);
+    }
+    return null;
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -81,6 +96,8 @@ const Settings: React.FC = () => {
 
       const profileData = await response.json();
       console.log('Profile data received:', profileData);
+      console.log('Phone from profile:', profileData.phone);
+      console.log('Phone from JWT token:', getPhoneFromToken());
       setProfile(profileData);
       
       // Populate form with existing data
@@ -330,6 +347,18 @@ const Settings: React.FC = () => {
               />
             </div>
 
+            {/* Debug Information (Temporary) */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Info (Development Only)</h3>
+                <div className="text-xs text-yellow-700 space-y-1">
+                  <div>Profile Phone: {profile.phone || 'null'}</div>
+                  <div>JWT Phone: {getPhoneFromToken() || 'null'}</div>
+                  <div>Profile Data: {JSON.stringify(profile, null, 2)}</div>
+                </div>
+              </div>
+            )}
+
             {/* Read-only Information */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="text-sm font-medium text-gray-900 mb-3">Account Information</h3>
@@ -337,10 +366,10 @@ const Settings: React.FC = () => {
                 <div>
                   <span className="text-gray-500">Phone Number:</span>
                   <span className="ml-2 font-medium text-gray-900">
-                    {profile.phone ? (
-                      <span className="font-mono">{profile.phone}</span>
+                    {(profile.phone || getPhoneFromToken()) ? (
+                      <span className="font-mono">{profile.phone || getPhoneFromToken()}</span>
                     ) : (
-                      <span className="text-gray-400 italic">Not provided</span>
+                      <span className="text-gray-400 italic">Not available</span>
                     )}
                   </span>
                 </div>
