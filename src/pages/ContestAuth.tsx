@@ -376,9 +376,9 @@ const ContestAuth: React.FC = () => {
       
       <div className="max-w-2xl mx-auto">
         <div className="bg-white shadow-lg rounded-[28px] overflow-hidden">
-          {/* Hero Image/Video Section - 16:9 Format */}
+          {/* Hero Image/Video Section - 4:3 Format */}
           {contest.image_url && (
-            <div className="relative w-full aspect-video">
+            <div className="relative w-full" style={{ aspectRatio: '4/3' }}>
               {contest.image_url.toLowerCase().endsWith('.mp4') ? (
                 <video
                   src={contest.image_url}
