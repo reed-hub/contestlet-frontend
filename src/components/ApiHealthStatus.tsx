@@ -8,6 +8,7 @@ const ApiHealthStatus: React.FC = () => {
     if (loading) return 'text-yellow-600';
     if (error) return 'text-red-600';
     if (data?.status === 'ok' || data?.status === 'healthy') return 'text-green-600';
+    if (data?.status === 'staging') return 'text-blue-600'; // Blue for staging
     return 'text-orange-600';
   };
 
@@ -47,7 +48,13 @@ const ApiHealthStatus: React.FC = () => {
   const getDisplayText = () => {
     if (loading) return 'Checking API...';
     if (error) return `API Error: ${error}`;
-    if (data) return `API ${data.status}: ${data.message}`;
+    if (data) {
+      // Handle staging environment status
+      if (data.status === 'staging') {
+        return `Staging Environment: ${data.message}`;
+      }
+      return `API ${data.status}: ${data.message}`;
+    }
     return 'API status unknown';
   };
 
