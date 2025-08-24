@@ -121,14 +121,14 @@ const Layout: React.FC = () => {
                           {/* Sponsor-specific links */}
                           {isSponsor() && (
                             <>
-                              <Link
-                                to="/sponsor/dashboard"
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                onClick={() => setUserDropdownOpen(false)}
-                              >
-                                <span className="mr-3">🏢</span>
-                                Sponsor Dashboard
-                              </Link>
+                                                    <Link
+                        to="/sponsor/dashboard"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="mr-3">🏢</span>
+                        Dashboard
+                      </Link>
                               <Link
                                 to="/sponsor/contests"
                                 className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
@@ -298,13 +298,13 @@ const Layout: React.FC = () => {
                   )}
                   {isSponsor() && (
                     <>
-                      <Link
-                        to="/sponsor/dashboard"
-                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        🏢 Sponsor Dashboard
-                      </Link>
+                                             <Link
+                         to="/sponsor/dashboard"
+                         className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                         onClick={() => setMobileMenuOpen(false)}
+                       >
+                         🏢 Dashboard
+                       </Link>
                       <Link
                         to="/sponsor/contests"
                         className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
