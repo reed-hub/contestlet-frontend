@@ -470,7 +470,7 @@ const SponsorContests: React.FC = () => {
                       <div className="mb-4">
                         <p className="text-sm text-gray-500 mb-2">Time Remaining:</p>
                         <CountdownTimer
-                          endTime={contest.end_time}
+                          targetDate={contest.end_time}
                           onExpire={() => handleTimerExpire(contest.id)}
                         />
                       </div>
@@ -531,8 +531,8 @@ const SponsorContests: React.FC = () => {
         message={`Are you sure you want to delete "${contestToDelete?.name}"? This action cannot be undone.`}
         confirmText="Delete"
         cancelText="Cancel"
-        loading={deleteLoading}
-        danger
+        isLoading={deleteLoading}
+        isDangerous
       />
 
       {/* Toast */}

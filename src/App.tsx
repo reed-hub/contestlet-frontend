@@ -14,6 +14,9 @@ import ContestEntries from './pages/ContestEntries';
 import NotificationLogs from './pages/NotificationLogs';
 import AdminProfile from './pages/AdminProfile';
 import SponsorDashboard from './pages/SponsorDashboard';
+import SponsorContests from './pages/SponsorContests';
+import SponsorCreateContest from './pages/SponsorCreateContest';
+import SponsorEditContest from './pages/SponsorEditContest';
 import UserDashboard from './pages/UserDashboard';
 import RoleBasedRoute from './components/RoleBasedRoute';
 import RoleTester from './components/RoleTester';
@@ -52,6 +55,21 @@ function App() {
           <Route path="sponsor/dashboard" element={
             <RoleBasedRoute allowedRoles={['sponsor', 'admin']}>
               <SponsorDashboard />
+            </RoleBasedRoute>
+          } />
+          <Route path="sponsor/contests" element={
+            <RoleBasedRoute allowedRoles={['sponsor', 'admin']}>
+              <SponsorContests />
+            </RoleBasedRoute>
+          } />
+          <Route path="sponsor/contests/new" element={
+            <RoleBasedRoute allowedRoles={['sponsor', 'admin']}>
+              <SponsorCreateContest />
+            </RoleBasedRoute>
+          } />
+          <Route path="sponsor/contests/:contest_id/edit" element={
+            <RoleBasedRoute allowedRoles={['sponsor', 'admin']}>
+              <SponsorEditContest />
             </RoleBasedRoute>
           } />
           

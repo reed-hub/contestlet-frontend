@@ -159,6 +159,7 @@ const SponsorDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
