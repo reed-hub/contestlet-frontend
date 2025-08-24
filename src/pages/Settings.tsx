@@ -13,6 +13,7 @@ interface UserProfile {
   website?: string;
   bio?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 const Settings: React.FC = () => {
@@ -79,6 +80,7 @@ const Settings: React.FC = () => {
       }
 
       const profileData = await response.json();
+      console.log('Profile data received:', profileData);
       setProfile(profileData);
       
       // Populate form with existing data
@@ -334,21 +336,80 @@ const Settings: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-500">Phone Number:</span>
-                  <span className="ml-2 font-medium text-gray-900">{profile.phone}</span>
+                  <span className="ml-2 font-medium text-gray-900">
+                    {profile.phone ? (
+                      <span className="font-mono">{profile.phone}</span>
+                    ) : (
+                      <span className="text-gray-400 italic">Not provided</span>
+                    )}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-500">Role:</span>
-                  <span className="ml-2 font-medium text-gray-900 capitalize">{profile.role}</span>
+                  <span className="ml-2 font-medium text-gray-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {profile.role ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1) : 
+                       (() => {
+                         if (isAdmin()) return 'Admin';
+                         if (isSponsor()) return 'Sponsor';
+                         if (isUser()) return 'User';
+                         return 'Unknown';
+                       })()}
+                    </span>
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-500">Member Since:</span>
                   <span className="ml-2 font-medium text-gray-900">
-                    {new Date(profile.created_at).toLocaleDateString()}
+                    {profile.created_at ? (
+                      new Date(profile.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    ) : (
+                      <span className="text-gray-400 italic">Unknown</span>
+                    )}
                   </span>
                 </div>
                 <div>
                   <span className="text-gray-500">User ID:</span>
-                  <span className="ml-2 font-medium text-gray-900">{profile.id}</span>
+                  <span className="ml-2 font-medium text-gray-900 font-mono">
+                    {profile.id || <span className="text-gray-400 italic">Unknown</span>}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Additional Account Details */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Account Status:</span>
+                    <span className="ml-2 font-medium text-green-600">
+                      <span className="inline-flex items-center">
+                        <svg className="w-4 h-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Active
+                      </span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Last Updated:</span>
+                    <span className="ml-2 font-medium text-gray-900">
+                      {profile.updated_at ? (
+                        new Date(profile.updated_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      ) : (
+                        <span className="text-gray-400 italic">Never</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
