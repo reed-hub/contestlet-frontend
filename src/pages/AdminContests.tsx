@@ -159,8 +159,58 @@ const AdminContests: React.FC = () => {
 
   // Auto-refresh removed - users can manually refresh using the button in the header
 
+  // Deletion protection detection
+  const getDeletionProtectionInfo = (contest: Contest) => {
+    const now = new Date();
+    const startTime = new Date(contest.start_time);
+    const endTime = new Date(contest.end_time);
+    
+    // Check for protected states
+    const protections = [];
+    
+    // Contest has entries (most important protection)
+    if (contest.entry_count > 0) {
+      protections.push(`Has ${contest.entry_count} active entry${contest.entry_count === 1 ? '' : 's'}`);
+    }
+    
+    // Contest is currently active (within time window)
+    if (now >= startTime && now <= endTime) {
+      protections.push('Currently accepting entries');
+    }
+    
+    // Contest hasn't started yet
+    if (now < startTime) {
+      protections.push('Scheduled to start soon');
+    }
+    
+    // Contest is complete (has winner)
+    if (contest.status === 'complete') {
+      protections.push('Winner already selected');
+    }
+    
+    return {
+      canDelete: protections.length === 0,
+      protections,
+      reason: protections.length > 0 
+        ? `Cannot delete: ${protections.join(', ')}`
+        : 'Safe to delete'
+    };
+  };
+
   // Delete contest handlers
   const handleDeleteClick = (contest: Contest) => {
+    const protectionInfo = getDeletionProtectionInfo(contest);
+    
+    if (!protectionInfo.canDelete) {
+      // Show protection info instead of delete modal
+      setToast({
+        type: 'warning',
+        message: protectionInfo.reason,
+        isVisible: true,
+      });
+      return;
+    }
+    
     setContestToDelete(contest);
     setDeleteModalOpen(true);
   };
@@ -650,9 +700,25 @@ const AdminContests: React.FC = () => {
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate pr-2">
                       {contest.name}
                     </h3>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(contest).color}`}>
-                      {getStatusInfo(contest).text}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(contest).color}`}>
+                        {getStatusInfo(contest).text}
+                      </span>
+                      {(() => {
+                        const protectionInfo = getDeletionProtectionInfo(contest);
+                        if (!protectionInfo.canDelete) {
+                          return (
+                            <span 
+                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300"
+                              title={protectionInfo.reason}
+                            >
+                              🔒 Protected
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
                   <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">ID: {contest.id}</p>
                   
@@ -749,16 +815,26 @@ const AdminContests: React.FC = () => {
                     
                     {/* Danger Zone - Delete Button */}
                     <div className="pt-3 mt-3 border-t border-red-200">
-                      <button
-                        onClick={() => handleDeleteClick(contest)}
-                        className="w-full inline-flex justify-center items-center px-3 py-2 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Delete Contest
-                      </button>
-
+                      {(() => {
+                        const protectionInfo = getDeletionProtectionInfo(contest);
+                        return (
+                          <button
+                            onClick={() => handleDeleteClick(contest)}
+                            disabled={!protectionInfo.canDelete}
+                            className={`w-full inline-flex justify-center items-center px-3 py-2 border text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              protectionInfo.canDelete
+                                ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100 focus:ring-red-500'
+                                : 'border-gray-300 text-gray-500 bg-gray-100 cursor-not-allowed'
+                            }`}
+                            title={protectionInfo.reason}
+                          >
+                            <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            {protectionInfo.canDelete ? 'Delete Contest' : 'Protected'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -797,16 +873,26 @@ const AdminContests: React.FC = () => {
                     
                     {/* Danger Zone - Delete Button */}
                     <div className="pt-2 border-t border-red-200">
-                      <button
-                        onClick={() => handleDeleteClick(contest)}
-                        className="w-full inline-flex justify-center items-center px-2 py-2 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Delete Contest
-                      </button>
-
+                      {(() => {
+                        const protectionInfo = getDeletionProtectionInfo(contest);
+                        return (
+                          <button
+                            onClick={() => handleDeleteClick(contest)}
+                            disabled={!protectionInfo.canDelete}
+                            className={`w-full inline-flex justify-center items-center px-2 py-2 border text-xs font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              protectionInfo.canDelete
+                                ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100 focus:ring-red-500'
+                                : 'border-gray-300 text-gray-500 bg-gray-100 cursor-not-allowed'
+                            }`}
+                            title={protectionInfo.reason}
+                          >
+                            <svg className="h-2 w-2 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            {protectionInfo.canDelete ? 'Delete Contest' : 'Protected'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
