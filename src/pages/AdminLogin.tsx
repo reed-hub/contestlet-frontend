@@ -53,6 +53,15 @@ const AdminLogin: React.FC = () => {
 
     try {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+      
+      // 🔍 DEBUG: Log API configuration for staging investigation
+      console.log('🔍 ADMIN LOGIN DEBUG - STAGING INVESTIGATION');
+      console.log('  - Environment:', process.env.NODE_ENV);
+      console.log('  - REACT_APP_API_BASE_URL:', process.env.REACT_APP_API_BASE_URL);
+      console.log('  - Final API Base URL:', apiBaseUrl);
+      console.log('  - Phone Number:', phoneNumber);
+      console.log('  - Request URL:', `${apiBaseUrl}/auth/request-otp`);
+      
       const response = await fetch(`${apiBaseUrl}/auth/request-otp`, {
         method: 'POST',
         headers: {
@@ -64,6 +73,13 @@ const AdminLogin: React.FC = () => {
       });
 
       const data = await response.json();
+      
+      // 🔍 DEBUG: Log OTP request response
+      console.log('🔍 OTP REQUEST RESPONSE DEBUG');
+      console.log('  - Response Status:', response.status);
+      console.log('  - Response OK:', response.ok);
+      console.log('  - Response Data:', data);
+      console.log('  - Response Headers:', Object.fromEntries(response.headers.entries()));
 
       if (response.ok) {
         setStep('otp');
@@ -98,6 +114,13 @@ const AdminLogin: React.FC = () => {
     try {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
       
+      // 🔍 DEBUG: Log OTP verification details
+      console.log('🔍 OTP VERIFICATION DEBUG - STAGING INVESTIGATION');
+      console.log('  - API Base URL:', apiBaseUrl);
+      console.log('  - Verify URL:', `${apiBaseUrl}/auth/verify-otp`);
+      console.log('  - Phone Number:', phoneNumber);
+      console.log('  - OTP Code:', otpCode);
+      
       // Step 1: Verify OTP and get JWT token
       const verifyResponse = await fetch(`${apiBaseUrl}/auth/verify-otp`, {
         method: 'POST',
@@ -111,6 +134,13 @@ const AdminLogin: React.FC = () => {
       });
 
       const verifyData = await verifyResponse.json();
+      
+      // 🔍 DEBUG: Log OTP verification response
+      console.log('🔍 OTP VERIFICATION RESPONSE DEBUG');
+      console.log('  - Verify Response Status:', verifyResponse.status);
+      console.log('  - Verify Response OK:', verifyResponse.ok);
+      console.log('  - Verify Response Data:', verifyData);
+      console.log('  - Verify Response Headers:', Object.fromEntries(verifyResponse.headers.entries()));
 
       if (verifyResponse.ok && verifyData.success) {
         // Step 2: Check if user has admin role
@@ -177,6 +207,13 @@ const AdminLogin: React.FC = () => {
               : 'Enter the verification code sent to your phone'
             }
           </p>
+          
+          {/* 🔍 STAGING DEBUG INDICATOR */}
+          {process.env.REACT_APP_ENVIRONMENT === 'staging' && (
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-xs">
+              🔍 STAGING DEBUG: API Base URL = {process.env.REACT_APP_API_BASE_URL || 'NOT SET'}
+            </div>
+          )}
         </div>
 
         {step === 'phone' ? (
