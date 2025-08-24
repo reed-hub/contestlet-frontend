@@ -116,9 +116,21 @@ const UniversalLogin: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         
+        // Debug logging for OTP verification response
+        console.log('🔐 OTP Verification Response:', {
+          success: true,
+          data,
+          role: data.role,
+          hasAccessToken: !!data.access_token,
+          tokenLength: data.access_token?.length || 0
+        });
+        
         // Store the JWT token
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('user_phone', phone);
+        
+        // Force immediate state update by dispatching storage event
+        window.dispatchEvent(new Event('storage'));
         
         setMessage({
           type: 'success',

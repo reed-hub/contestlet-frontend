@@ -118,6 +118,8 @@ export interface SponsorProfile {
 export const getCurrentUser = (): User | null => {
   // Check for new access token first
   const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+  console.log('🔍 getCurrentUser - accessToken exists:', !!accessToken);
+  
   if (accessToken) {
     try {
       // Simple JWT decode (payload only)
@@ -127,6 +129,15 @@ export const getCurrentUser = (): User | null => {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
       }).join(''));
       const decoded = JSON.parse(jsonPayload);
+      
+      console.log('🔍 JWT Decoded successfully:', {
+        hasRole: !!decoded.role,
+        role: decoded.role,
+        sub: decoded.sub,
+        phone: decoded.phone,
+        exp: decoded.exp,
+        currentTime: Math.floor(Date.now() / 1000)
+      });
       
       if (decoded && decoded.role) {
         return {
@@ -147,6 +158,12 @@ export const getCurrentUser = (): User | null => {
   const adminToken = getAdminToken();
   const userToken = getToken();
   const userPhone = getUserPhone();
+  
+  console.log('🔍 Fallback to legacy tokens:', {
+    hasAdminToken: !!adminToken,
+    hasUserToken: !!userToken,
+    userPhone
+  });
   
   if (adminToken) {
     return {
@@ -170,24 +187,36 @@ export const getCurrentUser = (): User | null => {
     };
   }
   
+  console.log('🔍 No valid tokens found, returning null');
   return null;
 };
 
 export const getUserRole = (): UserRole | null => {
   const user = getCurrentUser();
-  return user?.role || null;
+  const role = user?.role || null;
+  console.log('🔍 getUserRole called:', { user, role });
+  return role;
 };
 
 export const isAdmin = (): boolean => {
-  return getUserRole() === 'admin';
+  const role = getUserRole();
+  const result = role === 'admin';
+  console.log('🔍 isAdmin called:', { role, result });
+  return result;
 };
 
 export const isSponsor = (): boolean => {
-  return getUserRole() === 'sponsor';
+  const role = getUserRole();
+  const result = role === 'sponsor';
+  console.log('🔍 isSponsor called:', { role, result });
+  return result;
 };
 
 export const isUser = (): boolean => {
-  return getUserRole() === 'user';
+  const role = getUserRole();
+  const result = role === 'user';
+  console.log('🔍 isUser called:', { role, result });
+  return result;
 };
 
 export const hasRole = (allowedRoles: UserRole[]): boolean => {
@@ -256,4 +285,46 @@ export const getCurrentUserWithStoredRole = (): User | null => {
   }
   
   return null;
+};
+
+// Debug function to manually inspect JWT tokens
+export const debugJWTDecoding = (): void => {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  console.log('🔍 Debug JWT Decoding:');
+  console.log('Raw token exists:', !!token);
+  
+  if (token) {
+    try {
+      // Manual decode for debugging
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      console.log('Decoded payload:', payload);
+      console.log('Role from token:', payload.role);
+      console.log('Token expiration:', new Date(payload.exp * 1000));
+      console.log('Current time:', new Date());
+      console.log('Token expired:', Date.now() > payload.exp * 1000);
+    } catch (error) {
+      console.error('JWT decode error:', error);
+    }
+  }
+  
+  // Check all localStorage keys
+  console.log('All localStorage keys:', Object.keys(localStorage));
+  console.log('access_token length:', localStorage.getItem(ACCESS_TOKEN_KEY)?.length || 0);
+};
+
+// Debug function to check token storage
+export const debugTokenStorage = (): void => {
+  console.log('🔍 Debug Token Storage:');
+  console.log('localStorage access_token:', localStorage.getItem(ACCESS_TOKEN_KEY) ? 'Present' : 'Missing');
+  console.log('All localStorage keys:', Object.keys(localStorage));
+  
+  // Check if token is being overwritten
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    if (key === ACCESS_TOKEN_KEY) {
+      console.log('Setting access_token:', value ? 'Present' : 'Missing');
+      console.trace('Token set from:');
+    }
+    return originalSetItem.call(this, key, value);
+  };
 };
