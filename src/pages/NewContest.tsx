@@ -1033,10 +1033,10 @@ const NewContest: React.FC = () => {
               placeholder="https://example.com/contest-hero.jpg or https://example.com/contest-video.mp4"
               disabled={isSubmitting}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              🖼️ Enter a URL to an image (JPG, PNG, GIF) or video (MP4). 
-              For images: 1:1 aspect ratio recommended. For videos: MP4 format with autoplay, loop, and muted.
-            </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                🖼️ Enter a URL to an image (JPG, PNG, GIF) or video (MP4). 
+                For images: 16:9 aspect ratio recommended for better mobile viewing. For videos: MP4 format with autoplay, loop, and muted.
+              </p>
             {formData.image_url && (
               <div className="mt-2">
                 <p className="text-xs text-gray-600 mb-2">Preview:</p>
