@@ -34,7 +34,7 @@ const Layout: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/admin');
+    navigate('/login');
   };
 
   return (
@@ -123,10 +123,10 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <Link
-                    to="/admin"
+                    to="/login"
                     className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                   >
-                    Admin Login
+                    Sign In
                   </Link>
                 )}
               </div>
@@ -245,11 +245,11 @@ const Layout: React.FC = () => {
                 </>
               ) : (
                 <Link
-                  to="/admin"
+                  to="/login"
                   className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  🔐 Admin Login
+                  🔐 Sign In
                 </Link>
               )}
             </div>

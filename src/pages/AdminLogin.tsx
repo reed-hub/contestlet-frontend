@@ -115,8 +115,8 @@ const UniversalLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4 sm:px-6 lg:px-8 overflow-y-auto">
+      <div className="max-w-md w-full space-y-6 py-4 sm:py-8">
         {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
@@ -148,7 +148,7 @@ const UniversalLogin: React.FC = () => {
 
         {/* Phone Number Form */}
         {!showOtpInput && (
-          <form className="mt-8 space-y-6" onSubmit={handlePhoneSubmit}>
+          <form className="mt-6 space-y-4" onSubmit={handlePhoneSubmit}>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                 Phone Number
@@ -192,7 +192,7 @@ const UniversalLogin: React.FC = () => {
 
         {/* OTP Verification Form */}
         {showOtpInput && (
-          <form className="mt-8 space-y-6" onSubmit={handleOtpSubmit}>
+          <form className="mt-6 space-y-4" onSubmit={handleOtpSubmit}>
             <div>
               <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
                 Verification Code
@@ -244,7 +244,7 @@ const UniversalLogin: React.FC = () => {
 
         {/* Footer Information */}
         <div className="text-center">
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <h3 className="text-sm font-medium text-blue-900 mb-2">What happens after login?</h3>
             <div className="text-xs text-blue-700 space-y-1">
               <p>• <strong>Users:</strong> Browse and enter contests</p>
@@ -253,14 +253,14 @@ const UniversalLogin: React.FC = () => {
             </div>
           </div>
           
-          <p className="mt-4 text-xs text-gray-500">
+          <p className="mt-3 text-xs text-gray-500">
             Don't have an account? Your role will be automatically assigned based on your first login.
           </p>
         </div>
 
         {/* Development Debug Info */}
         {process.env.REACT_APP_ENVIRONMENT === 'staging' && (
-          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
             <p className="text-xs text-yellow-800">
               🔍 STAGING DEBUG: API Base URL = {process.env.REACT_APP_API_BASE_URL || 'NOT SET'}
             </p>
