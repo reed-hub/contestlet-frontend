@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { isSponsor, getCurrentUser } from '../utils/auth';
+import { isSponsor } from '../utils/auth';
 
 interface Contest {
   id: number;

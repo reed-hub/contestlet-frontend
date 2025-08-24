@@ -13,6 +13,10 @@ import EditContest from './pages/EditContest';
 import ContestEntries from './pages/ContestEntries';
 import NotificationLogs from './pages/NotificationLogs';
 import AdminProfile from './pages/AdminProfile';
+import SponsorDashboard from './pages/SponsorDashboard';
+import UserDashboard from './pages/UserDashboard';
+import RoleBasedRoute from './components/RoleBasedRoute';
+import RoleTester from './components/RoleTester';
 
 function App() {
   return (
@@ -24,6 +28,11 @@ function App() {
           <Route path="contest/:contest_id/success" element={<ContestSuccess />} />
           <Route path="contest/:contest_id/details" element={<ContestEntryPage />} />
           <Route path="my-entries" element={<MyEntries />} />
+          
+          {/* Role Testing (Development Only) */}
+          <Route path="role-tester" element={<RoleTester />} />
+          
+          {/* Admin Routes */}
           <Route path="admin" element={<AdminLogin />} />
           <Route path="admin/contests" element={<AdminContests />} />
           <Route path="admin/contests/new" element={<NewContest />} />
@@ -31,6 +40,20 @@ function App() {
           <Route path="admin/contests/:contest_id/entries" element={<ContestEntries />} />
           <Route path="admin/notifications" element={<NotificationLogs />} />
           <Route path="admin/profile" element={<AdminProfile />} />
+          
+          {/* Sponsor Routes */}
+          <Route path="sponsor/dashboard" element={
+            <RoleBasedRoute allowedRoles={['sponsor', 'admin']}>
+              <SponsorDashboard />
+            </RoleBasedRoute>
+          } />
+          
+          {/* User Routes */}
+          <Route path="user/dashboard" element={
+            <RoleBasedRoute allowedRoles={['user', 'sponsor', 'admin']}>
+              <UserDashboard />
+            </RoleBasedRoute>
+          } />
         </Route>
       </Routes>
     </Router>

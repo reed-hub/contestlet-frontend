@@ -112,6 +112,41 @@ export interface SponsorProfile {
 }
 
 // Role-based authentication functions
+export const getCurrentUser = (): User | null => {
+  // For now, we'll create a mock user based on stored tokens
+  // TODO: Replace with actual API call to get user profile
+  const adminToken = getAdminToken();
+  const userToken = getToken();
+  const userPhone = getUserPhone();
+  
+  if (adminToken) {
+    // If admin token exists, return admin user
+    return {
+      id: 'admin-user',
+      phone: userPhone || 'admin',
+      role: 'admin',
+      name: 'Administrator',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  
+  if (userToken && userPhone) {
+    // If user token exists, return user (default to 'user' role for now)
+    // TODO: Fetch actual user role from API
+    return {
+      id: 'user-' + userPhone,
+      phone: userPhone,
+      role: 'user', // Default role, should be fetched from API
+      name: 'User',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  
+  return null;
+};
+
 export const getUserRole = (): UserRole | null => {
   const user = getCurrentUser();
   return user?.role || null;
@@ -149,4 +184,50 @@ export const canManageSponsorProfiles = (): boolean => {
 
 export const canEnterContests = (): boolean => {
   return hasRole(['user', 'sponsor', 'admin']);
+};
+
+// Development/testing helper functions
+export const setUserRole = (role: UserRole): void => {
+  // Store role in localStorage for development/testing
+  // TODO: Remove this in production - roles should come from backend
+  localStorage.setItem('user_role', role);
+};
+
+export const getStoredUserRole = (): UserRole | null => {
+  // Get role from localStorage for development/testing
+  // TODO: Remove this in production - roles should come from backend
+  const storedRole = localStorage.getItem('user_role');
+  return storedRole as UserRole | null;
+};
+
+// Enhanced getCurrentUser that uses stored role for testing
+export const getCurrentUserWithStoredRole = (): User | null => {
+  const adminToken = getAdminToken();
+  const userToken = getToken();
+  const userPhone = getUserPhone();
+  const storedRole = getStoredUserRole();
+  
+  if (adminToken) {
+    return {
+      id: 'admin-user',
+      phone: userPhone || 'admin',
+      role: 'admin',
+      name: 'Administrator',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  
+  if (userToken && userPhone) {
+    return {
+      id: 'user-' + userPhone,
+      phone: userPhone,
+      role: storedRole || 'user', // Use stored role if available
+      name: 'User',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  
+  return null;
 };
