@@ -17,7 +17,7 @@ interface Contest {
   end_time: string;
   prize_description: string;
   image_url?: string;
-  sponsor_url?: string; // Sponsor website URL
+  sponsor_url?: string;
   status: string;
   entry_count: number;
   created_at: string;
@@ -52,44 +52,6 @@ const AdminContests: React.FC = () => {
 
   const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
-  // Check backend connectivity
-  const checkBackendConnectivity = async () => {
-    console.log('🔌 BACKEND CONNECTIVITY CHECK START');
-    console.log('  - API Base URL:', apiBaseUrl);
-    
-    try {
-      // Try a simple GET request to check connectivity
-      const response = await fetch(`${apiBaseUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      console.log('  - Health check response status:', response.status);
-      console.log('  - Health check response OK:', response.ok);
-      
-      if (response.ok) {
-        console.log('  - ✅ Backend is reachable');
-        return true;
-      } else {
-        console.log('  - ⚠️ Backend responded but with error status');
-        return false;
-      }
-    } catch (error) {
-      console.log('  - ❌ Backend connectivity failed');
-      console.log('  - Error:', error);
-      console.log('  - Possible issues:');
-      console.log('    * Backend server not running');
-      console.log('    * Wrong port number');
-      console.log('    * CORS issues');
-      console.log('    * Network problems');
-      return false;
-    } finally {
-      console.log('🔌 BACKEND CONNECTIVITY CHECK END');
-    }
-  };
-
   // Check authentication on mount
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -98,37 +60,44 @@ const AdminContests: React.FC = () => {
     }
   }, [navigate]);
 
-  // Fetch contests function
+  // Fetch contests on mount
+  useEffect(() => {
+    fetchContests();
+  }, []);
+
   const fetchContests = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const adminToken = getAdminToken();
-      
+
+      if (!adminToken) {
+        throw new Error('No admin token found. Please log in again.');
+      }
+
       console.log('Fetching admin contests with token:', adminToken ? `${adminToken.substring(0, 20)}...` : 'NO TOKEN');
-      
+
       const response = await fetch(`${apiBaseUrl}/admin/contests`, {
         headers: {
           'Authorization': `Bearer ${adminToken}`,
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (!response.ok) {
         if (response.status === 500) {
-          throw new Error(`Backend server error (500). The admin contests endpoint may need database migration for timezone support. Please check backend logs.`);
+          throw new Error(`Backend server error (500). Please check backend logs.`);
         }
         if (response.status === 403) {
-          throw new Error(`Access denied (403). Please check admin authentication token. You may need to log in again.`);
+          throw new Error(`Access denied (403). Please check authentication. You may need to log in again.`);
         }
         throw new Error(`Failed to fetch contests: ${response.status}`);
       }
-      
+
       const contestsData = await response.json();
-      console.log('Admin contests API Response:', contestsData); // Debug logging
-      
-      // Admin endpoint returns direct array of contests
+      console.log('Admin contests API Response:', contestsData);
+
       if (Array.isArray(contestsData)) {
         setContests(contestsData);
       } else {
@@ -142,75 +111,12 @@ const AdminContests: React.FC = () => {
     }
   };
 
-  // Memoized callback for timer expiration to prevent infinite loops
   const handleTimerExpire = useCallback((contestId: number) => {
-    console.log(`Contest ${contestId} timer expired, refreshing data...`);
+    // Refresh contests when a timer expires
     fetchContests();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // fetchContests is stable, no need to include in dependencies
+  }, []);
 
-  // Fetch contests on mount and when authentication changes
-  useEffect(() => {
-    if (isAdminAuthenticated()) {
-      fetchContests();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBaseUrl]);
-
-  // Auto-refresh removed - users can manually refresh using the button in the header
-
-  // Deletion protection detection
-  const getDeletionProtectionInfo = (contest: Contest) => {
-    const now = new Date();
-    const startTime = new Date(contest.start_time);
-    const endTime = new Date(contest.end_time);
-    
-    // Check for protected states
-    const protections = [];
-    
-    // Contest has entries (most important protection)
-    if (contest.entry_count > 0) {
-      protections.push(`Has ${contest.entry_count} active entry${contest.entry_count === 1 ? '' : 's'}`);
-    }
-    
-    // Contest is currently active (within time window)
-    if (now >= startTime && now <= endTime) {
-      protections.push('Currently accepting entries');
-    }
-    
-    // Contest hasn't started yet
-    if (now < startTime) {
-      protections.push('Scheduled to start soon');
-    }
-    
-    // Contest is complete (has winner)
-    if (contest.status === 'complete') {
-      protections.push('Winner already selected');
-    }
-    
-    return {
-      canDelete: protections.length === 0,
-      protections,
-      reason: protections.length > 0 
-        ? `Cannot delete: ${protections.join(', ')}`
-        : 'Safe to delete'
-    };
-  };
-
-  // Delete contest handlers
   const handleDeleteClick = (contest: Contest) => {
-    const protectionInfo = getDeletionProtectionInfo(contest);
-    
-    if (!protectionInfo.canDelete) {
-      // Show protection info instead of delete modal
-      setToast({
-        type: 'warning',
-        message: protectionInfo.reason,
-        isVisible: true,
-      });
-      return;
-    }
-    
     setContestToDelete(contest);
     setDeleteModalOpen(true);
   };
@@ -218,736 +124,440 @@ const AdminContests: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!contestToDelete) return;
 
-    console.log('🗑️ DELETE CONTEST HANDLER DEBUG START');
-    console.log('  - Contest to delete:', contestToDelete);
-    console.log('  - Contest ID:', contestToDelete.id);
-    console.log('  - Contest name:', contestToDelete.name);
-    console.log('  - Contest status:', contestToDelete.status);
-    console.log('  - Contest entry count:', contestToDelete.entry_count);
-    console.log('  - Current time:', new Date().toISOString());
-    console.log('  - Start time:', contestToDelete.start_time);
-    console.log('  - End time:', contestToDelete.end_time);
-
-    setDeleteLoading(true);
     try {
-      // Check backend connectivity first
-      console.log('  - Checking backend connectivity...');
-      const isBackendReachable = await checkBackendConnectivity();
-      
-      if (!isBackendReachable) {
-        throw new Error('Backend server is not reachable. Please check if the backend is running and accessible.');
-      }
-      
-      console.log('  - Backend is reachable, proceeding with delete...');
-      console.log('  - Calling deleteContest API...');
-      const result = await deleteContest(contestToDelete.id);
-      console.log('  - API response received:', result);
-      
-      if (result.success) {
-        console.log('  - ✅ Delete successful, updating local state...');
-        // Remove the deleted contest from the local state
-        setContests(prev => prev.filter(c => c.id !== contestToDelete.id));
-        setDeleteModalOpen(false);
-        setContestToDelete(null);
-        
-        // Show success toast
-        setToast({
-          type: 'success',
-          message: `Contest "${contestToDelete.name}" deleted successfully!`,
-          isVisible: true,
-        });
-        console.log('  - 🎉 Delete completed successfully');
-      } else {
-        console.log('  - ❌ Delete failed with message:', result.message);
-        // Handle error with detailed toast
-        setToast({
-          type: 'error',
-          message: `Failed to delete "${contestToDelete.name}": ${result.message}`,
-          isVisible: true,
-        });
-      }
-    } catch (error) {
-      console.log('  - 💥 Exception during delete:', error);
-      console.log('  - Error type:', typeof error);
-      console.log('  - Error message:', error instanceof Error ? error.message : String(error));
-      console.log('  - Full error object:', error);
+      setDeleteLoading(true);
+      await deleteContest(contestToDelete.id);
       
       setToast({
+        type: 'success',
+        message: `Contest "${contestToDelete.name}" deleted successfully`,
+        isVisible: true
+      });
+      
+      // Refresh contests list
+      await fetchContests();
+      
+      // Close modal
+      setDeleteModalOpen(false);
+      setContestToDelete(null);
+    } catch (error) {
+      setToast({
         type: 'error',
-        message: `Error deleting "${contestToDelete.name}": ${error instanceof Error ? error.message : 'An unexpected error occurred'}`,
-        isVisible: true,
+        message: error instanceof Error ? error.message : 'Failed to delete contest',
+        isVisible: true
       });
     } finally {
       setDeleteLoading(false);
-      console.log('🗑️ DELETE CONTEST DEBUG END');
     }
   };
 
-  const handleDeleteCancel = () => {
-    setDeleteModalOpen(false);
-    setContestToDelete(null);
-  };
+  const getDeletionProtectionInfo = (contest: Contest) => {
+    const now = new Date();
+    const startTime = new Date(contest.start_time);
+    const endTime = new Date(contest.end_time);
+    const isActive = now >= startTime && now <= endTime;
+    const isUpcoming = now < startTime;
+    const hasEntries = contest.entry_count > 0;
 
-  const getStatusInfo = (contest: Contest) => {
-    // Use server-provided status if available, otherwise fallback to computed
-    const status = contest.status || 'upcoming';
-    
-    const statusConfig = {
-      upcoming: { text: 'Upcoming', color: 'bg-blue-100 text-blue-800' },
-      active: { text: 'Active', color: 'bg-green-100 text-green-800' },
-      ended: { text: 'Ended', color: 'bg-red-100 text-red-800' },
-      complete: { text: 'Complete', color: 'bg-gray-100 text-gray-800' }
+    if (isActive) {
+      return {
+        canDelete: false,
+        reason: 'Contest is currently active'
+      };
+    }
+
+    if (isUpcoming) {
+      return {
+        canDelete: false,
+        reason: 'Contest has not started yet'
+      };
+    }
+
+    if (hasEntries) {
+      return {
+        canDelete: false,
+        reason: 'Contest has entries and cannot be deleted'
+      };
+    }
+
+    if (contest.status === 'complete') {
+      return {
+        canDelete: false,
+        reason: 'Contest is complete'
+      };
+    }
+
+    return {
+      canDelete: true,
+      reason: 'Contest can be safely deleted'
     };
-    
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.upcoming;
   };
 
   // Filter and sort contests
-  const filteredAndSortedContests = React.useMemo(() => {
-    let filtered = contests.filter(contest => {
-      // Search filter
+  const filteredAndSortedContests = contests
+    .filter(contest => {
       const matchesSearch = contest.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           contest.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           contest.id.toString().includes(searchTerm);
+                           contest.description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Status filter - use server-provided status
       let matchesStatus = true;
       if (statusFilter !== 'all') {
-        const status = contest.status || 'upcoming';
-        matchesStatus = status === statusFilter;
+        const now = new Date();
+        const startTime = new Date(contest.start_time);
+        const endTime = new Date(contest.end_time);
+        
+        switch (statusFilter) {
+          case 'upcoming':
+            matchesStatus = now < startTime;
+            break;
+          case 'active':
+            matchesStatus = now >= startTime && now <= endTime;
+            break;
+          case 'ended':
+            matchesStatus = now > endTime && contest.status !== 'complete';
+            break;
+          case 'complete':
+            matchesStatus = contest.status === 'complete';
+            break;
+        }
       }
       
       return matchesSearch && matchesStatus;
-    });
-
-    // Sort contests
-    filtered.sort((a, b) => {
-      let comparison = 0;
+    })
+    .sort((a, b) => {
+      let aValue: any, bValue: any;
       
       switch (sortBy) {
         case 'name':
-          comparison = a.name.localeCompare(b.name);
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
           break;
         case 'start_time':
-          comparison = new Date(ensureTimezoneSafe(a.start_time)).getTime() - new Date(ensureTimezoneSafe(b.start_time)).getTime();
+          aValue = new Date(a.start_time).getTime();
+          bValue = new Date(b.start_time).getTime();
           break;
         case 'end_time':
-          comparison = new Date(ensureTimezoneSafe(a.end_time)).getTime() - new Date(ensureTimezoneSafe(b.end_time)).getTime();
+          aValue = new Date(a.end_time).getTime();
+          bValue = new Date(b.end_time).getTime();
           break;
         case 'entry_count':
-          comparison = (a.entry_count || 0) - (b.entry_count || 0);
+          aValue = a.entry_count;
+          bValue = b.entry_count;
           break;
+        default:
+          aValue = new Date(a.end_time).getTime();
+          bValue = new Date(b.end_time).getTime();
       }
       
-      return sortOrder === 'asc' ? comparison : -comparison;
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
     });
 
-    return filtered;
-  }, [contests, searchTerm, statusFilter, sortBy, sortOrder]);
-
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (!isAdminAuthenticated()) {
+    return <div>Access denied. Admin role required.</div>;
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <Toast
-        type={toast.type}
-        message={toast.message}
-        isVisible={toast.isVisible}
-        onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
-      />
-      
-      {/* Header */}
-      <div className="bg-white shadow rounded-lg p-4 sm:p-6 mb-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Contest Management</h1>
-            <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage all contests and view entries</p>
-          </div>
-          <div className="flex flex-wrap gap-2 sm:gap-4">
-            <button
-              onClick={fetchContests}
-              disabled={loading}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {loading ? '🔄' : '🔄'} Refresh
-            </button>
-            <Link
-              to="/admin/contests/new"
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
-            >
-              + Create New Contest
-            </Link>
-            <button
-              onClick={() => setImportModalOpen(true)}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-600 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
-            >
-              📋 Import Contest
-            </button>
-
-          </div>
-        </div>
-      </div>
-
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error Loading Contests</h3>
-              <div className="mt-2 text-sm text-red-700">
-                <p>{error}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Filter and Sort Controls */}
-      <div className="bg-white shadow rounded-lg p-4 sm:p-6 mb-6">
-        {/* Mobile Layout - Stacked */}
-        <div className="block lg:hidden space-y-4">
-          {/* Search Bar */}
-          <div>
-            <label htmlFor="search-mobile" className="block text-sm font-medium text-gray-700 mb-2">
-              Search Contests
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                id="search-mobile"
-                type="text"
-                placeholder="Search contests..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Filter and Sort Row */}
-          <div className="grid grid-cols-2 gap-4">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
             <div>
-              <label htmlFor="status-filter-mobile" className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <select
-                id="status-filter-mobile"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="all">All</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="ended">Ended</option>
-              </select>
+              <h1 className="text-3xl font-bold text-gray-900">All Contests</h1>
+              <p className="mt-2 text-gray-600">Manage and monitor all platform contests</p>
             </div>
-
-            <div>
-              <label htmlFor="sort-by-mobile" className="block text-sm font-medium text-gray-700 mb-2">
-                Sort
-              </label>
-              <div className="flex gap-1">
-                <select
-                  id="sort-by-mobile"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="flex-1 px-2 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
-                >
-                  <option value="name">Name</option>
-                  <option value="start_time">Start</option>
-                  <option value="end_time">End</option>
-                  <option value="entry_count">Entries</option>
-                </select>
-                <button
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                  className="px-2 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
-                >
-                  {sortOrder === 'asc' ? (
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                    </svg>
-                  ) : (
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop/Tablet Layout - Grid */}
-        <div className="hidden lg:grid lg:gap-4 lg:items-end" style={{ gridTemplateColumns: '1fr 140px 160px' }}>
-          {/* Search Bar */}
-          <div>
-            <label htmlFor="search-desktop" className="block text-sm font-medium text-gray-700 mb-2">
-              Search Contests
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                id="search-desktop"
-                type="text"
-                placeholder="Search by name, description, or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label htmlFor="status-filter-desktop" className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by Status
-            </label>
-            <select
-              id="status-filter-desktop"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-            >
-              <option value="all">All Contests</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="active">Active</option>
-              <option value="ended">Ended</option>
-              <option value="complete">Complete</option>
-            </select>
-          </div>
-
-          {/* Sort Controls */}
-          <div>
-            <label htmlFor="sort-by-desktop" className="block text-sm font-medium text-gray-700 mb-2">
-              Sort by
-            </label>
-            <div className="flex gap-2">
-              <select
-                id="sort-by-desktop"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              >
-                <option value="name">Name</option>
-                <option value="start_time">Start Date</option>
-                <option value="end_time">End Date</option>
-                <option value="entry_count">Entries</option>
-              </select>
+            <div className="flex space-x-3">
               <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="px-3 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+                onClick={fetchContests}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
               >
-                {sortOrder === 'asc' ? (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  </svg>
-                ) : (
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                  </svg>
-                )}
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <Link
+                to="/admin/contests/new"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Create New Contest
+              </Link>
+              <button
+                onClick={() => setImportModalOpen(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                Import Campaign
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Contests Grid */}
-      <div>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-2 sm:space-y-0">
-          <h2 className="text-base sm:text-lg font-medium text-gray-900">
-            {statusFilter === 'all' ? 'All Contests' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Contests`}
-          </h2>
-          <div className="text-xs sm:text-sm text-gray-500">
-            <span className="block sm:inline">{filteredAndSortedContests.length} of {contests.length} contests</span>
-            {searchTerm && (
-              <span className="inline-block mt-1 sm:mt-0 sm:ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                Filtered by: "{searchTerm}"
-              </span>
-            )}
+        {/* Filters and Search */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Search */}
+            <div>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+                Search Contests
+              </label>
+              <input
+                type="text"
+                id="search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name or description..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <select
+                id="status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Statuses</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="active">Active</option>
+                <option value="ended">Ended</option>
+                <option value="complete">Complete</option>
+              </select>
+            </div>
+
+            {/* Sort By */}
+            <div>
+              <label htmlFor="sortBy" className="block text-sm font-medium text-gray-700 mb-2">
+                Sort By
+              </label>
+              <select
+                id="sortBy"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="end_time">End Time</option>
+                <option value="start_time">Start Time</option>
+                <option value="name">Name</option>
+                <option value="entry_count">Entry Count</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-700 mb-2">
+                Sort Order
+              </label>
+              <select
+                id="sortOrder"
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
           </div>
         </div>
-        
-        {filteredAndSortedContests.length === 0 && contests.length > 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 sm:p-12 text-center">
-            <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No contests match your filters</h3>
-            <p className="text-sm sm:text-base text-gray-500 mb-4 sm:mb-6">
-              Try adjusting your search term or status filter
-            </p>
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('all');
-              }}
-              className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Clear Filters
-            </button>
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
           </div>
-        ) : contests.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 sm:p-12 text-center">
-            <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No contests found</h3>
-            <p className="text-sm sm:text-base text-gray-500 mb-4 sm:mb-6">
-              Get started by creating your first contest
+        )}
+
+        {/* Contests Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading contests...</p>
+          </div>
+        ) : filteredAndSortedContests.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-6xl mb-4">🏆</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No contests found</h3>
+            <p className="text-gray-600 mb-6">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filters'
+                : 'Get started by creating your first contest'
+              }
             </p>
-            <Link
-              to="/admin/contests/new"
-              className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Create Contest
-            </Link>
+            {!searchTerm && statusFilter === 'all' && (
+              <Link
+                to="/admin/contests/new"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Create Your First Contest
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-            {filteredAndSortedContests.map((contest) => (
-              <div key={contest.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
-                {/* Contest Image/Video */}
-                {contest.image_url ? (
-                  <div className="relative w-full h-48 bg-gray-100 overflow-hidden group">
-                    {contest.image_url.toLowerCase().endsWith('.mp4') ? (
-                      <video
-                        src={contest.image_url}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        onError={(e) => {
-                          const target = e.target as HTMLVideoElement;
-                          target.style.display = 'none';
-                          target.parentElement!.innerHTML = `
-                            <div class="w-full h-full flex items-center justify-center text-gray-400">
-                              <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          `;
-                        }}
-                      />
-                    ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredAndSortedContests.map((contest) => {
+              const protectionInfo = getDeletionProtectionInfo(contest);
+              const now = new Date();
+              const startTime = new Date(contest.start_time);
+              const endTime = new Date(contest.end_time);
+              const isActive = now >= startTime && now <= endTime;
+              const isUpcoming = now < startTime;
+              const isEnded = now > endTime;
+              
+              return (
+                <div key={contest.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  {/* Contest Image */}
+                  {contest.image_url && (
+                    <div className="aspect-w-16 aspect-h-9 bg-gray-200">
                       <img
                         src={contest.image_url}
-                        alt={`${contest.name} contest image`}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.parentElement!.innerHTML = `
-                            <div class="w-full h-full flex items-center justify-center text-gray-400">
-                              <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          `;
-                        }}
+                        alt={contest.name}
+                        className="w-full h-48 object-cover"
                       />
+                    </div>
+                  )}
+                  
+                  {/* Contest Content */}
+                  <div className="p-6">
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        isActive ? 'bg-green-100 text-green-800' :
+                        isUpcoming ? 'bg-blue-100 text-blue-800' :
+                        isEnded ? 'bg-gray-100 text-gray-800' :
+                        'bg-purple-100 text-purple-800'
+                      }`}>
+                        {isActive ? 'Active' :
+                         isUpcoming ? 'Upcoming' :
+                         isEnded ? 'Ended' :
+                         contest.status === 'complete' ? 'Complete' : 'Unknown'}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {contest.entry_count} entry{contest.entry_count !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    
+                    {/* Contest Title */}
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{contest.name}</h3>
+                    
+                    {/* Description */}
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                      {contest.description}
+                    </p>
+                    
+                    {/* Prize */}
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500 mb-1">Prize:</p>
+                      <p className="text-sm text-gray-900 font-medium">{contest.prize_description}</p>
+                    </div>
+                    
+                    {/* Location */}
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500 mb-1">Location:</p>
+                      <p className="text-sm text-gray-900">{contest.location}</p>
+                    </div>
+                    
+                    {/* Countdown Timer */}
+                    {isActive && (
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-500 mb-2">Time Remaining:</p>
+                        <CountdownTimer
+                          targetDate={contest.end_time}
+                          onExpire={() => handleTimerExpire(contest.id)}
+                        />
+                      </div>
                     )}
-                    {/* Hover overlay for better text readability */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300"></div>
-                  </div>
-                ) : (
-                  <div className="w-full h-48 bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center group hover:from-purple-100 hover:to-blue-100 transition-all duration-300">
-                    <div className="text-center text-gray-400 group-hover:text-gray-500">
-                      <svg className="h-16 w-16 mx-auto mb-2 transition-transform duration-300 group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="text-sm font-medium">No Image</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Card Header */}
-                <div className="p-4 sm:p-6 pb-3 sm:pb-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate pr-2">
-                      {contest.name}
-                    </h3>
-                    <div className="flex items-center space-x-2">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusInfo(contest).color}`}>
-                        {getStatusInfo(contest).text}
-                      </span>
-
-                    </div>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">ID: {contest.id}</p>
-                  
-                  {/* Countdown Timer */}
-                  <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
-                    <CountdownTimer
-                      targetDate={(() => {
-                        const now = new Date();
-                        const startTime = parseBackendUtcDate(contest.start_time);
-                        
-                        // If contest hasn't started yet, countdown to start
-                        if (now < startTime) {
-                          return contest.start_time;
-                        }
-                        // If contest is active, countdown to end
-                        return contest.end_time;
-                      })()}
-                      label={(() => {
-                        const now = new Date();
-                        const startTime = parseBackendUtcDate(contest.start_time);
-                        
-                        if (now < startTime) {
-                          return "Starts In";
-                        }
-                        return "Ends In";
-                      })()}
-                      className="text-xs sm:text-sm"
-                      onExpire={() => handleTimerExpire(contest.id)}
-                    />
-                  </div>
-                  
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <div className="flex items-center text-gray-600">
-                      <svg className="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <span className="hidden sm:inline">{(contest.entry_count || 0).toLocaleString()} entries</span>
-                      <span className="sm:hidden">{(contest.entry_count || 0)}</span>
-                    </div>
-                    <div className="text-gray-500 text-xs">
-                      <span className="hidden sm:inline">
-                        Ends: {formatDateInAdminTimezone(contest.end_time, localStorage.getItem('adminTimezone') || 'America/New_York', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          hour: 'numeric', 
-                          minute: '2-digit' 
-                        })}
-                      </span>
-                      <span className="sm:hidden">
-                        {formatDateInAdminTimezone(contest.end_time, localStorage.getItem('adminTimezone') || 'America/New_York', { 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Actions */}
-                <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-200">
-                  {/* Mobile: Stacked Layout */}
-                  <div className="block sm:hidden space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => navigate(`/enter/${contest.id}`)}
-                        className="inline-flex justify-center items-center px-3 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/contests/${contest.id}/edit`)}
-                        className="inline-flex justify-center items-center px-3 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Edit
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => navigate(`/admin/contests/${contest.id}/entries`)}
-                      className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    >
-                      <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      View Entries
-                    </button>
                     
-                    {/* Delete Button */}
-                    <div className="pt-3 mt-3">
-                      {(() => {
-                        const protectionInfo = getDeletionProtectionInfo(contest);
-                        if (protectionInfo.canDelete) {
-                          // Show normal delete button
-                          return (
-                            <button
-                              onClick={() => handleDeleteClick(contest)}
-                              className="w-full inline-flex justify-center items-center px-3 py-2 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete Contest
-                            </button>
-                          );
-                        } else {
-                          // Show protected button with ? icon that shows reasons
-                          return (
-                            <button
-                              onClick={() => {
-                                setToast({
-                                  type: 'info',
-                                  message: protectionInfo.reason,
-                                  isVisible: true,
-                                });
-                              }}
-                              className="w-full inline-flex justify-center items-center px-3 py-2 border border-gray-300 text-xs font-medium rounded-md text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                              title="Click to see protection reasons"
-                            >
-                              Protected
-                              <svg className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </button>
-                          );
-                        }
-                      })()}
+                    {/* Dates */}
+                    <div className="mb-4 text-sm text-gray-600">
+                      <div className="flex justify-between">
+                        <span>Starts: {formatDateInAdminTimezone(contest.start_time)}</span>
+                        <span>Ends: {formatDateInAdminTimezone(contest.end_time)}</span>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Desktop/Tablet: Grid Layout */}
-                  <div className="hidden sm:block">
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <button
-                        onClick={() => navigate(`/enter/${contest.id}`)}
-                        className="inline-flex justify-center items-center px-2 py-2 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    
+                    {/* Actions */}
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/admin/contests/${contest.id}/edit`}
+                        className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 text-center"
                       >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/contests/${contest.id}/edit`)}
-                        className="inline-flex justify-center items-center px-2 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                      >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
                         Edit
-                      </button>
+                      </Link>
                       <button
-                        onClick={() => navigate(`/admin/contests/${contest.id}/entries`)}
-                        className="inline-flex justify-center items-center px-2 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        onClick={() => handleDeleteClick(contest)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md ${
+                          protectionInfo.canDelete
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                        disabled={!protectionInfo.canDelete}
+                        title={protectionInfo.reason}
                       >
-                        <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Entries
+                        {protectionInfo.canDelete ? 'Delete' : 'Protected'}
                       </button>
                     </div>
                     
-                    {/* Delete Button */}
-                    <div className="pt-2">
-                      {(() => {
-                        const protectionInfo = getDeletionProtectionInfo(contest);
-                        if (protectionInfo.canDelete) {
-                          // Show normal delete button
-                          return (
-                            <button
-                              onClick={() => handleDeleteClick(contest)}
-                              className="w-full inline-flex justify-center items-center px-2 py-2 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              <svg className="h-2 w-2 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete Contest
-                            </button>
-                          );
-                        } else {
-                          // Show protected button with ? icon that shows reasons
-                          return (
-                            <button
-                              onClick={() => {
-                                setToast({
-                                  type: 'info',
-                                  message: protectionInfo.reason,
-                                  isVisible: true,
-                                });
-                              }}
-                              className="w-full inline-flex justify-center items-center px-2 py-2 border border-gray-300 text-xs font-medium rounded-md text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                              title="Click to see protection reasons"
-                            >
-                              Protected
-                              <svg className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </button>
-                          );
-                        }
-                      })()}
-                    </div>
+                    {/* Protection Info */}
+                    {!protectionInfo.canDelete && (
+                      <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <p className="text-xs text-yellow-800">
+                          <strong>Protected:</strong> {protectionInfo.reason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
-      
+
       {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={deleteModalOpen}
-        onClose={handleDeleteCancel}
+        onClose={() => setDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Delete Contest"
-        message={`Are you sure you want to delete "${contestToDelete?.name}"? 
-
-This action cannot be undone and will permanently remove the contest and all associated data.
-
-Note: Contests with active entries, ongoing campaigns, or in certain protected states cannot be deleted. If deletion fails, you may need to end the contest first or contact support.`}
-        confirmText="Delete Contest"
+        message={`Are you sure you want to delete "${contestToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
         cancelText="Cancel"
-        isDangerous={true}
         isLoading={deleteLoading}
+        isDangerous
       />
-      
-      <ImportCampaignModal
-        isOpen={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-        onSuccess={(contestId) => {
-          setImportModalOpen(false);
-          fetchContests(); // Refresh the contest list
-          navigate(`/admin/contests/${contestId}`);
-        }}
+
+             {/* Import Campaign Modal */}
+       <ImportCampaignModal
+         isOpen={importModalOpen}
+         onClose={() => setImportModalOpen(false)}
+         onSuccess={() => {
+           setImportModalOpen(false);
+           fetchContests();
+         }}
+       />
+
+      {/* Toast */}
+      <Toast
+        type={toast.type}
+        message={toast.message}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
       />
     </div>
   );
