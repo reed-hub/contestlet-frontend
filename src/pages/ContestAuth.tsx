@@ -376,9 +376,9 @@ const ContestAuth: React.FC = () => {
       
       <div className="max-w-2xl mx-auto">
         <div className="bg-white shadow-lg rounded-[28px] overflow-hidden">
-          {/* Hero Image/Video Section - 1:1 Format */}
+          {/* Hero Image/Video Section - 4:3 Format */}
           {contest.image_url && (
-            <div className="relative w-full aspect-square">
+            <div className="relative w-full" style={{ aspectRatio: '4/3' }}>
               {contest.image_url.toLowerCase().endsWith('.mp4') ? (
                 <video
                   src={contest.image_url}
@@ -405,8 +405,8 @@ const ContestAuth: React.FC = () => {
                   }}
                 />
               )}
-              {/* Optional overlay for text readability */}
-              <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+              {/* Minimal overlay for text readability - reduced opacity */}
+              <div className="absolute inset-0 bg-black bg-opacity-10"></div>
             </div>
           )}
           

@@ -828,7 +828,7 @@ const EditContest: React.FC = () => {
               />
               <p className="text-xs text-gray-500 mt-1">
                 🖼️ Enter a URL to an image (JPG, PNG, GIF) or video (MP4). 
-                For images: 1:1 aspect ratio recommended. For videos: MP4 format with autoplay, loop, and muted.
+                For images: 4:3 aspect ratio recommended for balanced mobile and desktop viewing. For videos: MP4 format with autoplay, loop, and muted.
               </p>
               {formData.image_url && (
                 <div className="mt-2">
