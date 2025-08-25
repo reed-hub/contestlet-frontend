@@ -516,8 +516,62 @@ const EditContest: React.FC = () => {
     }
   };
 
+  // Deletion protection detection
+  const getDeletionProtectionInfo = (contest: Contest) => {
+    if (!contest) return { canDelete: false, protections: [], reason: 'Contest not loaded' };
+    
+    const now = new Date();
+    const startTime = new Date(contest.start_time);
+    const endTime = new Date(contest.end_time);
+    
+    // Check for protected states
+    const protections = [];
+    
+    // Contest has entries (most important protection)
+    if (contest.entry_count && contest.entry_count > 0) {
+      protections.push(`Has ${contest.entry_count} active entry${contest.entry_count === 1 ? '' : 's'}`);
+    }
+    
+    // Contest is currently active (within time window)
+    if (now >= startTime && now <= endTime) {
+      protections.push('Currently accepting entries');
+    }
+    
+    // Contest hasn't started yet
+    if (now < startTime) {
+      protections.push('Scheduled to start soon');
+    }
+    
+    // Contest is active (using the active boolean field)
+    if (contest.active) {
+      protections.push('Contest is currently active');
+    }
+    
+    return {
+      canDelete: protections.length === 0,
+      protections,
+      reason: protections.length > 0 
+        ? `Cannot delete: ${protections.join(', ')}`
+        : 'Safe to delete'
+    };
+  };
+
   // Delete contest handlers
   const handleDeleteClick = () => {
+    if (!contest) return;
+    
+    const protectionInfo = getDeletionProtectionInfo(contest);
+    
+    if (!protectionInfo.canDelete) {
+      // Show protection info instead of delete modal
+      setToast({
+        type: 'warning',
+        message: protectionInfo.reason,
+        isVisible: true,
+      });
+      return;
+    }
+    
     setDeleteModalOpen(true);
   };
 
@@ -1266,22 +1320,22 @@ const EditContest: React.FC = () => {
         </form>
       </div>
 
-      {/* Danger Zone */}
+      {/* Contest Management */}
       <div className="bg-white shadow rounded-lg p-6 mt-6">
-        <div className="border-l-4 border-red-400 bg-red-50 p-4 mb-6">
+        <div className="border-l-4 border-gray-400 bg-gray-50 p-4 mb-6">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">
-                Danger Zone
+              <h3 className="text-sm font-medium text-gray-800">
+                Contest Management
               </h3>
-              <div className="mt-2 text-sm text-red-700">
+              <div className="mt-2 text-sm text-gray-700">
                 <p>
-                  Deleting this contest is a permanent action that cannot be undone. 
+                  Manage contest settings and data. Deleting this contest is a permanent action that cannot be undone. 
                   All contest data, entries, and associated records will be permanently removed.
                 </p>
               </div>
@@ -1296,15 +1350,43 @@ const EditContest: React.FC = () => {
               Permanently delete "{contest?.name}" and all associated data.
             </p>
           </div>
-          <button
-            onClick={handleDeleteClick}
-            className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          >
-            <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Delete Contest
-          </button>
+          {(() => {
+            const protectionInfo = getDeletionProtectionInfo(contest);
+            if (protectionInfo.canDelete) {
+              // Show normal delete button
+              return (
+                <button
+                  onClick={handleDeleteClick}
+                  className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Contest
+                </button>
+              );
+            } else {
+              // Show protected button with ? icon that shows reasons
+              return (
+                <button
+                  onClick={() => {
+                    setToast({
+                      type: 'info',
+                      message: protectionInfo.reason,
+                      isVisible: true,
+                    });
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  title="Click to see protection reasons"
+                >
+                  Protected
+                  <svg className="h-4 w-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              );
+            }
+          })()}
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
 Permanently remove this contest and all associated data

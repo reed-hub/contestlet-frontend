@@ -153,7 +153,13 @@ const LandingPage: React.FC = () => {
               Enter Contest ID
             </button>
             <a
-              href="/admin"
+              href="/login"
+              className="bg-transparent border-2 border-white text-white font-semibold py-3 px-8 rounded-xl hover:bg-white hover:text-blue-600 transition-colors"
+            >
+              Sign In
+            </a>
+            <a
+              href="/admin/contests"
               className="bg-transparent border-2 border-white text-white font-semibold py-3 px-8 rounded-xl hover:bg-white hover:text-blue-600 transition-colors"
             >
               Admin Portal

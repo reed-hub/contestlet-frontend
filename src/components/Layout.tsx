@@ -1,40 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { logout, isAdminAuthenticated } from '../utils/auth';
+import { logout, getUserRole, isAdmin, isSponsor, isUser } from '../utils/auth';
 import ApiHealthStatus from './ApiHealthStatus';
 
 const Layout: React.FC = () => {
-  const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const userRole = getUserRole();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Layout Debug:', {
+      userRole,
+      isAdmin: isAdmin(),
+      isSponsor: isSponsor(),
+      isUser: isUser(),
+      accessToken: localStorage.getItem('access_token') ? 'Present' : 'Missing',
+      adminToken: localStorage.getItem('contestlet-admin-token') ? 'Present' : 'Missing'
+    });
+  }, [userRole]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (adminDropdownOpen && !target.closest('.admin-dropdown')) {
-        setAdminDropdownOpen(false);
+      if (userDropdownOpen && !target.closest('.user-dropdown')) {
+        setUserDropdownOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [adminDropdownOpen]);
+  }, [userDropdownOpen]);
 
   // Close mobile menu when route changes
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Close admin dropdown when route changes
+  // Close user dropdown when route changes
   useEffect(() => {
-    setAdminDropdownOpen(false);
+    setUserDropdownOpen(false);
   }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
-    navigate('/admin');
+    navigate('/login');
   };
 
   return (
@@ -58,17 +71,18 @@ const Layout: React.FC = () => {
                 >
                   Home
                 </Link>
-                {/* Admin Dropdown */}
-                {isAdminAuthenticated() ? (
-                  <div className="relative admin-dropdown">
+                
+                {/* Role-based Navigation */}
+                {userRole ? (
+                  <div className="relative user-dropdown">
                     <button
-                      onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
+                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                       className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center"
                     >
-                      👤 Admin
+                      👤 {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
                       <svg
                         className={`ml-1 h-3 w-3 transform transition-transform ${
-                          adminDropdownOpen ? 'rotate-180' : ''
+                          userDropdownOpen ? 'rotate-180' : ''
                         }`}
                         fill="none"
                         stroke="currentColor"
@@ -79,37 +93,89 @@ const Layout: React.FC = () => {
                     </button>
 
                     {/* Dropdown Menu */}
-                    {adminDropdownOpen && (
+                    {userDropdownOpen && (
                       <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                         <div className="py-1">
+                          {/* Admin-specific links */}
+                          {isAdmin() && (
+                            <>
+                              <Link
+                                to="/admin/contests"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                onClick={() => setUserDropdownOpen(false)}
+                              >
+                                <span className="mr-3">🏆</span>
+                                Contest Management
+                              </Link>
+                              <Link
+                                to="/admin/notifications"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                onClick={() => setUserDropdownOpen(false)}
+                              >
+                                <span className="mr-3">📧</span>
+                                SMS Logs
+                              </Link>
+                            </>
+                          )}
+                          
+                          {/* Sponsor-specific links */}
+                          {isSponsor() && (
+                            <>
+                                                    <Link
+                        to="/sponsor/dashboard"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setUserDropdownOpen(false)}
+                      >
+                        <span className="mr-3">🏢</span>
+                        Dashboard
+                      </Link>
+                              <Link
+                                to="/sponsor/contests"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                onClick={() => setUserDropdownOpen(false)}
+                              >
+                                <span className="mr-3">🏆</span>
+                                My Contests
+                              </Link>
+                            </>
+                          )}
+                          
+                          {/* User-specific links */}
+                          {isUser() && (
+                            <>
+                              <Link
+                                to="/user/dashboard"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                onClick={() => setUserDropdownOpen(false)}
+                              >
+                                <span className="mr-3">🏠</span>
+                                User Dashboard
+                              </Link>
+                              <Link
+                                to="/contests"
+                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                onClick={() => setUserDropdownOpen(false)}
+                              >
+                                <span className="mr-3">🏆</span>
+                                Available Contests
+                              </Link>
+                            </>
+                          )}
+                          
+                          {/* Universal links */}
                           <Link
-                            to="/admin/contests"
+                            to="/settings"
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() => setAdminDropdownOpen(false)}
-                          >
-                            <span className="mr-3">🏆</span>
-                            Contest Management
-                          </Link>
-                          <Link
-                            to="/admin/notifications"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() => setAdminDropdownOpen(false)}
-                          >
-                            <span className="mr-3">📧</span>
-                            SMS Logs
-                          </Link>
-                          <Link
-                            to="/admin/profile"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                            onClick={() => setAdminDropdownOpen(false)}
+                            onClick={() => setUserDropdownOpen(false)}
                           >
                             <span className="mr-3">⚙️</span>
-                            Profile
+                            Settings
                           </Link>
+                          
                           <div className="border-t border-gray-100"></div>
                           <button
                             onClick={() => {
-                              setAdminDropdownOpen(false);
+                              setUserDropdownOpen(false);
                               handleLogout();
                             }}
                             className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 transition-colors"
@@ -123,10 +189,10 @@ const Layout: React.FC = () => {
                   </div>
                 ) : (
                   <Link
-                    to="/admin"
+                    to="/login"
                     className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                   >
-                    Admin Login
+                    Sign In
                   </Link>
                 )}
               </div>
@@ -210,28 +276,68 @@ const Layout: React.FC = () => {
               >
                 🏠 Home
               </Link>
-              {isAdminAuthenticated() ? (
+              {userRole ? (
                 <>
+                  {isAdmin() && (
+                    <>
+                      <Link
+                        to="/admin/contests"
+                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        🏆 Contest Management
+                      </Link>
+                      <Link
+                        to="/admin/notifications"
+                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        📧 SMS Logs
+                      </Link>
+                    </>
+                  )}
+                  {isSponsor() && (
+                    <>
+                                             <Link
+                         to="/sponsor/dashboard"
+                         className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                         onClick={() => setMobileMenuOpen(false)}
+                       >
+                         🏢 Dashboard
+                       </Link>
+                      <Link
+                        to="/sponsor/contests"
+                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        🏆 My Contests
+                      </Link>
+                    </>
+                  )}
+                  {isUser() && (
+                    <>
+                      <Link
+                        to="/user/dashboard"
+                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        🏠 User Dashboard
+                      </Link>
+                      <Link
+                        to="/contests"
+                        className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        🏆 Available Contests
+                      </Link>
+                    </>
+                  )}
                   <Link
-                    to="/admin/contests"
+                    to="/settings"
                     className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    🏆 Contest Management
-                  </Link>
-                  <Link
-                    to="/admin/notifications"
-                    className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    📧 SMS Logs
-                  </Link>
-                  <Link
-                    to="/admin/profile"
-                    className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    ⚙️ Profile
+                    ⚙️ Settings
                   </Link>
                   <button
                     onClick={() => {
@@ -245,11 +351,11 @@ const Layout: React.FC = () => {
                 </>
               ) : (
                 <Link
-                  to="/admin"
+                  to="/login"
                   className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  🔐 Admin Login
+                  🔐 Sign In
                 </Link>
               )}
             </div>

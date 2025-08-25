@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { isAdminAuthenticated, getAdminToken } from '../utils/auth';
-import { deleteContest } from '../utils/adminApi';
+import { isSponsor, getCurrentUser } from '../utils/auth';
 import { formatDateInAdminTimezone, parseBackendUtcDate, ensureTimezoneSafe } from '../utils/timezone';
 import CountdownTimer from '../components/CountdownTimer';
 import ConfirmationModal from '../components/ConfirmationModal';
-import ImportCampaignModal from '../components/ImportCampaignModal';
 import Toast from '../components/Toast';
 
 interface Contest {
@@ -24,7 +22,7 @@ interface Contest {
   updated_at: string;
 }
 
-const AdminContests: React.FC = () => {
+const SponsorContests: React.FC = () => {
   const [contests, setContests] = useState<Contest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,9 +36,6 @@ const AdminContests: React.FC = () => {
   const [contestToDelete, setContestToDelete] = useState<Contest | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   
-  // Import campaign state
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  
   // Toast state
   const [toast, setToast] = useState<{
     type: 'success' | 'error' | 'info' | 'warning';
@@ -49,42 +44,39 @@ const AdminContests: React.FC = () => {
   }>({ type: 'info', message: '', isVisible: false });
   
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
 
-  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+  const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 
   // Check authentication on mount
   useEffect(() => {
-    if (!isAdminAuthenticated()) {
-      navigate('/admin');
+    if (!isSponsor()) {
+      navigate('/login');
       return;
     }
   }, [navigate]);
 
-  // Fetch contests on mount
-  useEffect(() => {
-    fetchContests();
-  }, []);
-
+  // Fetch contests function
   const fetchContests = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const adminToken = getAdminToken();
-
-      if (!adminToken) {
-        throw new Error('No admin token found. Please log in again.');
+      
+      const accessToken = localStorage.getItem('access_token');
+      
+      if (!accessToken) {
+        throw new Error('No access token found. Please log in again.');
       }
-
-      console.log('Fetching admin contests with token:', adminToken ? `${adminToken.substring(0, 20)}...` : 'NO TOKEN');
-
-      const response = await fetch(`${apiBaseUrl}/admin/contests`, {
+      
+      console.log('Fetching sponsor contests with token:', accessToken ? `${accessToken.substring(0, 20)}...` : 'NO TOKEN');
+      
+      const response = await fetch(`${apiBaseUrl}/sponsor/contests`, {
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
-
+      
       if (!response.ok) {
         if (response.status === 500) {
           throw new Error(`Backend server error (500). Please check backend logs.`);
@@ -94,10 +86,10 @@ const AdminContests: React.FC = () => {
         }
         throw new Error(`Failed to fetch contests: ${response.status}`);
       }
-
+      
       const contestsData = await response.json();
-      console.log('Admin contests API Response:', contestsData);
-
+      console.log('Sponsor contests API Response:', contestsData);
+      
       if (Array.isArray(contestsData)) {
         setContests(contestsData);
       } else {
@@ -111,86 +103,102 @@ const AdminContests: React.FC = () => {
     }
   };
 
+  // Memoized callback for timer expiration
   const handleTimerExpire = useCallback((contestId: number) => {
-    // Refresh contests when a timer expires
+    console.log(`Contest ${contestId} timer expired, refreshing data...`);
     fetchContests();
   }, []);
 
-  const handleDeleteClick = (contest: Contest) => {
-    setContestToDelete(contest);
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!contestToDelete) return;
-
-    try {
-      setDeleteLoading(true);
-      await deleteContest(contestToDelete.id);
-      
-      setToast({
-        type: 'success',
-        message: `Contest "${contestToDelete.name}" deleted successfully`,
-        isVisible: true
-      });
-      
-      // Refresh contests list
-      await fetchContests();
-      
-      // Close modal
-      setDeleteModalOpen(false);
-      setContestToDelete(null);
-    } catch (error) {
-      setToast({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to delete contest',
-        isVisible: true
-      });
-    } finally {
-      setDeleteLoading(false);
+  // Fetch contests on mount
+  useEffect(() => {
+    if (isSponsor()) {
+      fetchContests();
     }
-  };
+  }, [apiBaseUrl]);
 
+  // Deletion protection detection
   const getDeletionProtectionInfo = (contest: Contest) => {
     const now = new Date();
     const startTime = new Date(contest.start_time);
     const endTime = new Date(contest.end_time);
-    const isActive = now >= startTime && now <= endTime;
-    const isUpcoming = now < startTime;
-    const hasEntries = contest.entry_count > 0;
-
-    if (isActive) {
-      return {
-        canDelete: false,
-        reason: 'Contest is currently active'
-      };
+    
+    const protections = [];
+    
+    if (contest.entry_count > 0) {
+      protections.push(`Has ${contest.entry_count} active entry${contest.entry_count === 1 ? '' : 's'}`);
     }
-
-    if (isUpcoming) {
-      return {
-        canDelete: false,
-        reason: 'Contest has not started yet'
-      };
+    
+    if (now >= startTime && now <= endTime) {
+      protections.push('Currently accepting entries');
     }
-
-    if (hasEntries) {
-      return {
-        canDelete: false,
-        reason: 'Contest has entries and cannot be deleted'
-      };
+    
+    if (now < startTime) {
+      protections.push('Scheduled to start soon');
     }
-
+    
     if (contest.status === 'complete') {
-      return {
-        canDelete: false,
-        reason: 'Contest is complete'
-      };
+      protections.push('Winner already selected');
     }
-
+    
     return {
-      canDelete: true,
-      reason: 'Contest can be safely deleted'
+      canDelete: protections.length === 0,
+      protections,
+      reason: protections.length > 0 
+        ? `Cannot delete: ${protections.join(', ')}`
+        : 'Safe to delete'
     };
+  };
+
+  // Delete contest handlers
+  const handleDeleteClick = (contest: Contest) => {
+    const protectionInfo = getDeletionProtectionInfo(contest);
+    if (protectionInfo.canDelete) {
+      setContestToDelete(contest);
+      setDeleteModalOpen(true);
+    } else {
+      setToast({
+        type: 'warning',
+        message: protectionInfo.reason,
+        isVisible: true
+      });
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!contestToDelete) return;
+    
+    setDeleteLoading(true);
+    try {
+      const accessToken = localStorage.getItem('access_token');
+      const response = await fetch(`${apiBaseUrl}/sponsor/contests/${contestToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        setToast({
+          type: 'success',
+          message: 'Contest deleted successfully',
+          isVisible: true
+        });
+        fetchContests(); // Refresh the list
+      } else {
+        throw new Error(`Failed to delete contest: ${response.status}`);
+      }
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to delete contest',
+        isVisible: true
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteModalOpen(false);
+      setContestToDelete(null);
+    }
   };
 
   // Filter and sort contests
@@ -255,8 +263,18 @@ const AdminContests: React.FC = () => {
       }
     });
 
-  if (!isAdminAuthenticated()) {
-    return <div>Access denied. Admin role required.</div>;
+  // Show toast
+  const showToast = (type: 'success' | 'error' | 'info' | 'warning', message: string) => {
+    setToast({ type, message, isVisible: true });
+  };
+
+  // Hide toast
+  const hideToast = () => {
+    setToast({ ...toast, isVisible: false });
+  };
+
+  if (!isSponsor()) {
+    return <div>Access denied. Sponsor role required.</div>;
   }
 
   return (
@@ -266,8 +284,8 @@ const AdminContests: React.FC = () => {
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">All Contests</h1>
-              <p className="mt-2 text-gray-600">Manage and monitor all platform contests</p>
+              <h1 className="text-3xl font-bold text-gray-900">My Contests</h1>
+              <p className="mt-2 text-gray-600">Manage and monitor your contests</p>
             </div>
             <div className="flex space-x-3">
               <button
@@ -278,46 +296,31 @@ const AdminContests: React.FC = () => {
                 {loading ? 'Refreshing...' : 'Refresh'}
               </button>
               <Link
-                to="/admin/contests/new"
+                to="/sponsor/contests/create"
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Create New Contest
               </Link>
-              <button
-                onClick={() => setImportModalOpen(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                Import Campaign
-              </button>
             </div>
           </div>
         </div>
 
         {/* Filters and Search */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
             <div>
-              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
-                Search Contests
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
               <input
                 type="text"
-                id="search"
+                placeholder="Search contests..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name or description..."
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {/* Status Filter */}
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
-                id="status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -329,32 +332,22 @@ const AdminContests: React.FC = () => {
                 <option value="complete">Complete</option>
               </select>
             </div>
-
-            {/* Sort By */}
             <div>
-              <label htmlFor="sortBy" className="block text-sm font-medium text-gray-700 mb-2">
-                Sort By
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
               <select
-                id="sortBy"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="end_time">End Time</option>
-                <option value="start_time">Start Time</option>
                 <option value="name">Name</option>
+                <option value="start_time">Start Time</option>
+                <option value="end_time">End Time</option>
                 <option value="entry_count">Entry Count</option>
               </select>
             </div>
-
-            {/* Sort Order */}
             <div>
-              <label htmlFor="sortOrder" className="block text-sm font-medium text-gray-700 mb-2">
-                Sort Order
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
               <select
-                id="sortOrder"
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as any)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -401,7 +394,7 @@ const AdminContests: React.FC = () => {
             </p>
             {!searchTerm && statusFilter === 'all' && (
               <Link
-                to="/admin/contests/new"
+                to="/sponsor/contests/create"
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
               >
                 Create Your First Contest
@@ -494,7 +487,7 @@ const AdminContests: React.FC = () => {
                     {/* Actions */}
                     <div className="flex space-x-2">
                       <Link
-                        to={`/admin/contests/${contest.id}/edit`}
+                        to={`/sponsor/contests/${contest.id}/edit`}
                         className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 text-center"
                       >
                         Edit
@@ -542,25 +535,15 @@ const AdminContests: React.FC = () => {
         isDangerous
       />
 
-             {/* Import Campaign Modal */}
-       <ImportCampaignModal
-         isOpen={importModalOpen}
-         onClose={() => setImportModalOpen(false)}
-         onSuccess={() => {
-           setImportModalOpen(false);
-           fetchContests();
-         }}
-       />
-
       {/* Toast */}
       <Toast
         type={toast.type}
         message={toast.message}
         isVisible={toast.isVisible}
-        onClose={() => setToast({ ...toast, isVisible: false })}
+        onClose={hideToast}
       />
     </div>
   );
 };
 
-export default AdminContests;
+export default SponsorContests;

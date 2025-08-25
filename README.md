@@ -6,7 +6,8 @@ A React + TypeScript + Tailwind CSS frontend application for contest management 
 
 - **Landing Page** (`/`) - Welcome page with contest ID entry
 - **Contest Entry** (`/enter/:contest_id`) - Contest participation form  
-- **Admin Portal** (`/admin`) - Admin login and dashboard
+- **Universal Login** (`/login`) - Multi-role authentication for users, sponsors, and admins
+- **Admin Portal** (`/admin/contests`) - Admin dashboard and contest management
 - **Responsive Design** - Mobile-friendly layout with Tailwind CSS
 - **React Router** - Client-side routing
 
